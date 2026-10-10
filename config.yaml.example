@@ -1,0 +1,60 @@
+server:
+  listen: ":8443"
+
+storage:
+  driver: sqlite        # sqlite | postgres（postgres 示例见下方注释）
+  dsn: ./data/argus.db
+  # driver: postgres
+  # dsn: "postgres://user:password@localhost:5432/argus?sslmode=disable"
+
+security:
+  jwt_secret_env: ARGUS_JWT_SECRET
+  master_key_env: ARGUS_MASTER_KEY
+  # jwt_secret: <直接指定；优先读环境变量>
+  # master_key: <直接指定（≥32 字节）；优先读环境变量>
+  # 说明：首次使用推荐浏览器打开安装向导（/setup）可视化配置，
+  # 向导可一键生成并写回本文件（自动备份 .bak），无需手动编辑。
+
+auth:
+  access_token_ttl: 15m
+  refresh_token_ttl: 720h
+  max_login_failures: 5
+  lockout_minutes: 15
+  min_password_len: 12
+  cookie_secure: false   # 生产环境 HTTPS 访问时设置为 true
+
+acme:
+  # ca_file: ./data/ca.pem   # 自建 ACME CA / 测试环境指定根证书池；空则使用系统信任
+  # http01_port: 80          # HTTP-01 验证服务器端口（0 默认 80）
+
+scheduler:
+  enabled: true
+  scan_minutes: 60            # 扫描间隔
+  renew_days_before: 30       # 到期前 N 天自动续期
+  task_log_retention_days: 90 # 任务日志保留天数（0 禁用清理）
+  audit_log_retention_days: 0 # 审计日志保留天数（0 禁用清理，每日任务执行）
+  notify_log_retention_days: 0 # 通知发送/防重日志保留天数（0 禁用清理）
+
+notification:
+  # 注意：渠道参数已在界面配置（notification_channels 表），
+  # 以下配置仅在首次初始化时作为种子导入，之后以界面为准。
+  smtp:
+    # host: smtp.example.com
+    # port: 465
+    # username: notify@example.com
+    # password_env: SMTP_PASSWORD
+    # from: Argus <notify@example.com>
+    # use_tls: true          # true=465 隐式 TLS；false 则尝试 STARTTLS
+  webhook:
+    # url: https://hook.example.com/cert
+    # secret: webhook-sign-secret
+    # 注意：webhook 目标将收到含私钥的明文 JSON，请务必使用 HTTPS 并妥善保管签名密钥
+  im:
+    # wecom:
+    #   webhook_url: https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=xxx
+    #   key: xxx
+    # dingtalk:
+    #   webhook_url: https://oapi.dingtalk.com/robot/send?access_token=xxx
+    #   key: sign-secret
+    # feishu:
+    #   webhook_url: https://open.feishu.cn/open-apis/bot/v2/hook/xxx

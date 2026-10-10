@@ -1,0 +1,44 @@
+# Go
+build/
+data/
+*.exe
+*.test
+coverage.out
+
+# SQLite 运行库（含加密凭据，绝不入库）
+*.db
+*.db-shm
+*.db-wal
+
+# Node / web
+web/node_modules/
+web/dist/
+webassets/dist/
+web/*.tsbuildinfo
+web/.env
+
+# site-docs
+site-docs/node_modules/
+site-docs/docs/.vitepress/cache/
+site-docs/docs/.vitepress/dist/
+*.log
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+Thumbs.db
+.DS_Store
+
+# 密钥与敏感文件
+*.key
+!internal/infrastructure/crypto/*.go
+config.local.yaml
+.env
+
+# ��ʱ�ļ�
+.tmp
+*.tmp
+*.pid

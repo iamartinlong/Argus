@@ -1,0 +1,1464 @@
+openapi: 3.0.3
+info:
+  title: Argus API
+  version: 0.5.0
+  description: |
+    集中式 SSL 证书管理系统 API。
+
+    认证方式：
+    - **JWT**（Web 界面会话）：`Authorization: Bearer <access_token>`
+    - **API Token**（程序化客户端）：`X-API-Token: <token>`
+
+    角色权限：admin（全部）、operator（管理证书/部署/通知）、readonly（只读）。
+    管理类接口（users/audit-logs/api-tokens/agents 写操作）仅 admin。
+
+    统一响应信封：所有 JSON 接口返回 {code, message, trace_id, timestamp, data}；
+    成功 code=0，错误 code 为字符串错误码（invalid_argument/unauthorized/forbidden/not_found/conflict/unprocessable/too_many_requests/not_implemented/internal_error）。
+    分页接口 data 为 {items, total, limit, offset}。
+    豁免（非信封）：/api/v1/agent/*（Agent 出站协议）、/healthz、文件下载与导出、/metrics、/openapi.yaml。
+  license:
+    name: MIT
+servers:
+  - url: /api/v1
+paths:
+  /healthz:
+    get:
+      tags: [系统]
+      summary: 健康检查
+      security: []
+      responses:
+        "200":
+          description: 服务正常
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, example: ok }
+  /metrics:
+    get:
+      tags: [系统]
+      summary: Prometheus 指标（文本格式，无认证）
+      security: []
+      responses:
+        "200":
+          description: 指标文本
+          content:
+            text/plain:
+              schema: { type: string }
+  /stats:
+    get:
+      tags: [系统]
+      summary: 仪表盘统计（证书/续期趋势/部署与通知成功率）
+      responses:
+        "200":
+          description: 统计结果
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total_certificates: { type: integer }
+                  expiring_within_30d: { type: integer }
+                  expired: { type: integer }
+                  auto_renew_success_rate: { type: number }
+                  deploy_success_rate: { type: number }
+                  notify_success_rate: { type: number }
+                  renewal_trend:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        month: { type: string, example: "2026-08" }
+                        success: { type: integer }
+                        total: { type: integer }
+  /auth/login:
+    post:
+      tags: [认证]
+      summary: 登录
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, password]
+              properties:
+                username: { type: string }
+                password: { type: string }
+      responses:
+        "200":
+          description: 登录成功（access_token 有效期 15 分钟；must_change_password 为 true 时仅允许改密接口）
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  access_token: { type: string }
+                  token_type: { type: string, example: Bearer }
+                  expires_in: { type: integer }
+                  must_change_password: { type: boolean }
+                  user: { $ref: "#/components/schemas/User" }
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "429":
+          description: 登录失败次数过多，账户已锁定
+  /auth/refresh:
+    post:
+      tags: [认证]
+      summary: 刷新令牌（Cookie 携带 refresh token）
+      security: []
+      responses:
+        "200":
+          description: 新令牌
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  access_token: { type: string }
+                  user: { $ref: "#/components/schemas/User" }
+  /auth/logout:
+    post:
+      tags: [认证]
+      summary: 注销（吊销 refresh token）
+      security: []
+      responses:
+        "200":
+          $ref: "#/components/responses/OK"
+  /users:
+    get:
+      tags: [用户]
+      summary: 用户列表（admin）
+      responses:
+        "200":
+          description: 用户列表
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/User" }
+    post:
+      tags: [用户]
+      summary: 创建用户（admin）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, password, role]
+              properties:
+                username: { type: string, minLength: 3 }
+                password: { type: string, minLength: 12 }
+                role: { type: string, enum: [admin, operator, readonly] }
+      responses:
+        "201": { description: 创建成功 }
+        "409": { description: 用户名已存在 }
+  /users/me/password:
+    put:
+      tags: [用户]
+      summary: 修改当前用户密码（首次登录强制改密走此接口）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [old_password, new_password]
+              properties:
+                old_password: { type: string }
+                new_password: { type: string, minLength: 12 }
+      responses:
+        "200": { $ref: "#/components/responses/OK" }
+  /certificates:
+    get:
+      tags: [证书]
+      summary: 证书列表
+      responses:
+        "200":
+          description: 证书列表
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Certificate" }
+    post:
+      tags: [证书]
+      summary: 签发证书（ACME HTTP-01/DNS-01 或云厂商；csr_pem 非空时以 CSR 模式签发，仅 ACME 渠道）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [account_id, verification]
+              properties:
+                domains:
+                  type: array
+                  items: { type: string }
+                  example: ["example.com", "www.example.com"]
+                account_id: { type: string }
+                contact_id: { type: string, description: "申请人信息 ID（云渠道签发时使用；留空取全局第一个；ACME 渠道忽略）" }
+                verification: { type: string, enum: [http01, dns01] }
+                dns_config: { type: object, additionalProperties: { type: string } }
+                dns_provider_account_id: { type: string, description: "DNS 验证账户 ID（可复用，优先于 dns_config）" }
+                deploy_target_ids: { type: array, items: { type: string } }
+                csr_pem: { type: string, description: "CSR（PEM），私钥保留在客户端" }
+                notify_events:
+                  type: array
+                  items: { type: string, enum: [cert_expiring, renew_success, renew_failed, issue_success, issue_failed, deploy_success, deploy_failed] }
+                  description: "该证书订阅的通知事件（默认全选；空数组=全部事件可通知）"
+      responses:
+        "201":
+          description: 签发任务已创建（签发为同步过程，成功返回证书；失败返回 422 携带证书记录）
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Certificate" }
+        "422":
+          description: 签发失败（证书记录已建立，可在响应中查看错误）
+  /certificates/import:
+    post:
+      tags: [证书]
+      summary: 导入已有证书（PEM 文本或 PFX/P12 文件；导入证书无续期/吊销/自动续期）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: PEM 模式（domains+certificate+private_key）与 PFX 模式（pfx+pfx_password）二选一
+              properties:
+                domains: { type: array, items: { type: string }, description: "PEM 模式：证书域名；PFX 模式省略（自动从 SAN 提取）" }
+                certificate: { type: string, description: "PEM 模式：证书 PEM（可含证书链）" }
+                private_key: { type: string, description: "PEM 模式：私钥 PEM" }
+                verification: { type: string, enum: [http01, dns01] }
+                deploy_target_ids: { type: array, items: { type: string }, description: "导入成功后自动部署的目标" }
+                pfx: { type: string, description: "PFX 模式：base64 编码的 PKCS#12 文件内容" }
+                pfx_password: { type: string, description: "PFX 模式：PFX 密码" }
+                notify_events:
+                  type: array
+                  items: { type: string, enum: [cert_expiring, renew_success, renew_failed, issue_success, issue_failed, deploy_success, deploy_failed] }
+                  description: "该证书订阅的通知事件（默认全选；空数组=全部事件可通知）"
+      responses:
+        "201":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Certificate" }
+  /certificates/batch-renew:
+    post:
+      tags: [证书]
+      summary: 批量续期（上限 20，串行执行，失败逐个收集）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ids]
+              properties:
+                ids: { type: array, items: { type: string } }
+      responses:
+        "200":
+          description: 批量结果
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BatchResult" }
+  /certificates/batch-deploy:
+    post:
+      tags: [证书]
+      summary: 批量部署到指定目标（上限 20）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ids, target_id]
+              properties:
+                ids: { type: array, items: { type: string } }
+                target_id: { type: string }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BatchResult" }
+  /certificates/{id}:
+    get:
+      tags: [证书]
+      summary: 证书详情
+      parameters:
+        - { $ref: "#/components/parameters/ID" }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Certificate" }
+    delete:
+      tags: [证书]
+      summary: 删除证书
+      parameters:
+        - { $ref: "#/components/parameters/ID" }
+      responses:
+        "200": { $ref: "#/components/responses/OK" }
+  /certificates/{id}/renew:
+    post:
+      tags: [证书]
+      summary: 手动续期
+      parameters:
+        - { $ref: "#/components/parameters/ID" }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                dns_config: { type: object, additionalProperties: { type: string } }
+                dns_provider_account_id: { type: string, description: "DNS 验证账户 ID（优先于 dns_config）" }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Certificate" }
+  /certificates/{id}/revoke:
+    post:
+      tags: [证书]
+      summary: 吊销证书（ACME 渠道）
+      parameters:
+        - { $ref: "#/components/parameters/ID" }
+      responses:
+        "200": { $ref: "#/components/responses/OK" }
+  /certificates/{id}/deploy:
+    post:
+      tags: [证书]
+      summary: 部署证书（target_ids 为空时部署全部绑定目标）
+      parameters:
+        - { $ref: "#/components/parameters/ID" }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                target_ids: { type: array, items: { type: string } }
+      responses:
+        "200": { $ref: "#/components/responses/OK" }
+  /certificates/{id}/targets:
+    put:
+      tags: [证书]
+      summary: 更新证书的部署目标绑定（整组替换，签发后可随时增删改）
+      parameters:
+        - { $ref: "#/components/parameters/ID" }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                deploy_target_ids: { type: array, items: { type: string }, description: "空数组即清空绑定" }
+      responses:
+        "200":
+          description: 更新成功，返回更新后的证书
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Certificate" }
+  /certificates/{id}/notify-events:
+    put:
+      tags: [证书]
+      summary: 更新证书的通知事件订阅（整组替换，签发后可随时调整）
+      parameters:
+        - { $ref: "#/components/parameters/ID" }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                notify_events:
+                  type: array
+                  items: { type: string, enum: [cert_expiring, renew_success, renew_failed, issue_success, issue_failed, deploy_success, deploy_failed] }
+                  description: "空数组=全部事件可通知"
+      responses:
+        "200":
+          description: 更新成功，返回更新后的证书
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Certificate" }
+  /certificates/{id}/download:
+    get:
+      tags: [证书]
+      summary: 下载证书/私钥（format: nginx|apache|iis|tomcat|other 返回 zip 包；jks/root 501；兼容旧 kind 单文件）
+      parameters:
+        - { $ref: "#/components/parameters/ID" }
+        - name: format
+          in: query
+          schema:
+            type: string
+            enum: [nginx, apache, iis, tomcat, other, jks, root]
+          description: |
+            服务器格式（返回 zip）：
+            - nginx: fullchain.pem + privkey.pem
+            - apache: cert.crt + privkey.key
+            - iis/tomcat: cert.pfx + password.txt（随机密码）
+            - other: cert.pem + privkey.pem
+            - jks/root: 501 即将支持
+        - name: kind
+          in: query
+          schema: { type: string, enum: [pem, key, fullchain, crt] }
+          description: 兼容旧版单文件下载；传 format 时忽略
+      responses:
+        "200":
+          description: zip 压缩包或 PEM 文件
+          content:
+            application/zip: { schema: { type: string, format: binary } }
+            application/octet-stream: { schema: { type: string, format: binary } }
+        "403":
+          description: readonly 角色无权下载含私钥的包
+        "404":
+          description: 无私钥（CSR 模式证书）
+        "501":
+          description: 该格式即将支持（jks/root）
+  /certificates/{id}/orders:
+    get:
+      tags: [证书]
+      summary: 证书签发/续期订单记录
+      parameters:
+        - { $ref: "#/components/parameters/ID" }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Order" }
+  /certificates/{id}/deploy-records:
+    get:
+      tags: [证书]
+      summary: 证书部署记录
+      parameters:
+        - { $ref: "#/components/parameters/ID" }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/DeployRecord" }
+  /acme-accounts:
+    get:
+      tags: [渠道账户]
+      summary: 渠道账户列表（凭据不回传）
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Account" }
+    post:
+      tags: [渠道账户]
+      summary: 创建渠道账户（ACME/云厂商；凭据 AES-GCM 加密存储）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [provider, name]
+              properties:
+                provider: { type: string, enum: [acme, aliyun, tencent] }
+                name: { type: string }
+                directory_url: { type: string, description: "ACME 目录（默认 Let's Encrypt 生产）" }
+                contact: { type: string, description: "ACME 联系邮箱" }
+                eab_kid: { type: string }
+                eab_hmac: { type: string, description: "EAB 密钥（仅创建时传入）" }
+                credentials: { type: object, description: "云厂商凭据（access_key_id/access_key_secret 等）" }
+      responses:
+        "201": { $ref: "#/components/schemas/Account" }
+  /acme-accounts/{id}/test:
+    post:
+      tags: [渠道账户]
+      summary: 测试账户连接（ACME 将注册账户）
+      parameters:
+        - { $ref: "#/components/parameters/ID" }
+      responses:
+        "200": { $ref: "#/components/responses/OK" }
+  /acme-accounts/{id}:
+    delete:
+      tags: [渠道账户]
+      summary: 删除账户（被证书引用时返回 409）
+      parameters:
+        - { $ref: "#/components/parameters/ID" }
+      responses:
+        "200": { $ref: "#/components/responses/OK" }
+        "409": { description: 账户仍被证书引用 }
+  /dns-accounts:
+    get:
+      tags: [渠道账户]
+      summary: DNS 验证账户列表
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/DnsAccount" }
+    post:
+      tags: [渠道账户]
+      summary: 创建 DNS 验证账户（alidns/cloudflare/dnspod/godaddy；凭据加密存储）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [provider, name]
+              properties:
+                provider: { type: string, enum: [alidns, cloudflare, dnspod, godaddy] }
+                name: { type: string }
+                credentials: { type: object, description: "按 provider：alidns {ALICLOUD_ACCESS_KEY, ALICLOUD_SECRET_KEY}；cloudflare {CLOUDFLARE_DNS_API_TOKEN 或 CLOUDFLARE_API_KEY+CLOUDFLARE_EMAIL}；dnspod {DNSPOD_API_TOKEN}；godaddy {GODADDY_API_KEY, GODADDY_API_SECRET}" }
+      responses:
+        "201": { $ref: "#/components/schemas/DnsAccount" }
+  /dns-accounts/providers:
+    get:
+      tags: [渠道账户]
+      summary: DNS 提供商枚举
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { type: string, enum: [alidns, cloudflare, dnspod, godaddy] }
+  /dns-accounts/{id}:
+    get:
+      tags: [渠道账户]
+      summary: DNS 账户详情（凭据脱敏回显）
+      parameters:
+        - { $ref: "#/components/parameters/ID" }
+      responses:
+        "200": { $ref: "#/components/schemas/DnsAccount" }
+    put:
+      tags: [渠道账户]
+      summary: 更新 DNS 账户（credentials 留空保持原值）
+      parameters:
+        - { $ref: "#/components/parameters/ID" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+                credentials: { type: object }
+      responses:
+        "200": { $ref: "#/components/schemas/DnsAccount" }
+    delete:
+      tags: [渠道账户]
+      summary: 删除 DNS 账户（被证书引用时返回 409）
+      parameters:
+        - { $ref: "#/components/parameters/ID" }
+      responses:
+        "200": { $ref: "#/components/responses/OK" }
+        "409": { description: 仍被证书引用 }
+  /settings/contacts:
+    get:
+      tags: [系统]
+      summary: 申请人信息列表（全局共享，云渠道签发时注入）
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ContactPerson" }
+    post:
+      tags: [系统]
+      summary: 新增申请人（admin/operator）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, email, phone]
+              properties:
+                name: { type: string }
+                email: { type: string, format: email }
+                phone: { type: string }
+      responses:
+        "201": { $ref: "#/components/schemas/ContactPerson" }
+  /settings/contacts/{id}:
+    put:
+      tags: [系统]
+      summary: 更新申请人（admin/operator）
+      parameters:
+        - { $ref: "#/components/parameters/ID" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, email, phone]
+              properties:
+                name: { type: string }
+                email: { type: string, format: email }
+                phone: { type: string }
+      responses:
+        "200": { $ref: "#/components/schemas/ContactPerson" }
+    delete:
+      tags: [系统]
+      summary: 删除申请人（admin/operator）
+      parameters:
+        - { $ref: "#/components/parameters/ID" }
+      responses:
+        "200": { $ref: "#/components/responses/OK" }
+  /deploy-targets:
+    get:
+      tags: [部署]
+      summary: 部署目标列表
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/DeployTarget" }
+    post:
+      tags: [部署]
+      summary: 创建部署目标（local/ssh/iis/webhook/k8s/agent）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, type]
+              properties:
+                name: { type: string }
+                type: { type: string, enum: [local, ssh, iis, webhook, k8s, agent] }
+                config: { type: object, description: "按类型：host/user/port/key/path/hook 等，加密存储。agent 类型 IIS 场景：pfx_path+site_name+bindings 自动生成部署脚本" }
+      responses:
+        "201": { $ref: "#/components/schemas/DeployTarget" }
+  /deploy-targets/{id}/test:
+    post:
+      tags: [部署]
+      summary: 测试目标连通性
+      parameters:
+        - { $ref: "#/components/parameters/ID" }
+      responses:
+        "200": { $ref: "#/components/responses/OK" }
+  /deploy-targets/{id}:
+    get:
+      tags: [部署]
+      summary: 查看部署目标（含解密后的 config，供编辑回显）
+      parameters:
+        - { $ref: "#/components/parameters/ID" }
+      responses:
+        "200": { $ref: "#/components/schemas/DeployTarget" }
+    put:
+      tags: [部署]
+      summary: 更新部署目标（名称/启用状态/配置）
+      parameters:
+        - { $ref: "#/components/parameters/ID" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+                type: { type: string, enum: [local, ssh, iis, webhook, k8s, agent] }
+                config: { type: object, description: "按类型：host/user/port/key/path/hook 等，加密存储。agent 类型 IIS 场景：pfx_path+site_name+bindings 自动生成部署脚本" }
+                enabled: { type: boolean }
+      responses:
+        "200": { $ref: "#/components/schemas/DeployTarget" }
+    delete:
+      tags: [部署]
+      summary: 删除部署目标
+      parameters:
+        - { $ref: "#/components/parameters/ID" }
+      responses:
+        "200": { $ref: "#/components/responses/OK" }
+  /notification-rules:
+    get:
+      tags: [通知]
+      summary: 通知规则列表
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/NotificationRule" }
+    post:
+      tags: [通知]
+      summary: 创建通知规则
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, event]
+              properties:
+                name: { type: string }
+                event: { type: string, enum: [cert_expiring, renew_success, renew_failed, issue_success, issue_failed, deploy_success, deploy_failed] }
+                channel_ids: { type: array, items: { type: string }, description: "引用通知渠道" }
+                channels: { type: array, items: { type: string }, description: "兼容：渠道类型名" }
+                days_before: { type: array, items: { type: integer }, description: "到期提前天数（仅 cert_expiring）" }
+                enabled: { type: boolean }
+      responses:
+        "201": { $ref: "#/components/schemas/NotificationRule" }
+  /notification-rules/{id}:
+    put:
+      tags: [通知]
+      summary: 更新通知规则（全量更新；支持启用/停用切换）
+      parameters:
+        - { $ref: "#/components/parameters/ID" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, event]
+              properties:
+                name: { type: string }
+                event: { type: string, enum: [cert_expiring, renew_success, renew_failed, issue_success, issue_failed, deploy_success, deploy_failed] }
+                channel_ids: { type: array, items: { type: string } }
+                channels: { type: array, items: { type: string } }
+                days_before: { type: array, items: { type: integer } }
+                enabled: { type: boolean }
+      responses:
+        "200": { $ref: "#/components/schemas/NotificationRule" }
+    delete:
+      tags: [通知]
+      summary: 删除通知规则
+      parameters:
+        - { $ref: "#/components/parameters/ID" }
+      responses:
+        "200": { $ref: "#/components/responses/OK" }
+  /notification-channels:
+    get:
+      tags: [通知]
+      summary: 通知渠道列表（配置不回传）
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Channel" }
+    post:
+      tags: [通知]
+      summary: 创建通知渠道（smtp/webhook/wecom/dingtalk/feishu；参数加密存储）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, type]
+              properties:
+                name: { type: string }
+                type: { type: string, enum: [smtp, webhook, wecom, dingtalk, feishu] }
+                enabled: { type: boolean, default: true }
+                config:
+                  type: object
+                  description: "smtp: host/port/username/password/from/use_tls；webhook: url/secret；wecom/dingtalk: webhook_url/key；feishu: webhook_url"
+      responses:
+        "201": { $ref: "#/components/schemas/Channel" }
+  /notification-channels/{id}:
+    get:
+      tags: [通知]
+      summary: 渠道详情（admin/operator；返回解密配置，敏感键 password/secret/key 置空供编辑回填）
+      parameters:
+        - { $ref: "#/components/parameters/ID" }
+      responses:
+        "200": { $ref: "#/components/schemas/Channel" }
+    put:
+      tags: [通知]
+      summary: 更新渠道（config 不传则保持原配置）
+      parameters:
+        - { $ref: "#/components/parameters/ID" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+                type: { type: string }
+                enabled: { type: boolean }
+                config: { type: object }
+      responses:
+        "200": { $ref: "#/components/schemas/Channel" }
+    delete:
+      tags: [通知]
+      summary: 删除渠道（规则引用自动清理）
+      parameters:
+        - { $ref: "#/components/parameters/ID" }
+      responses:
+        "200": { $ref: "#/components/responses/OK" }
+  /notification-channels/{id}/test:
+    post:
+      tags: [通知]
+      summary: 发送测试消息到渠道
+      parameters:
+        - { $ref: "#/components/parameters/ID" }
+      responses:
+        "200": { $ref: "#/components/responses/OK" }
+  /notification-templates:
+    get:
+      tags: [通知]
+      summary: 已配置的通知模板列表
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Template" }
+  /notification-templates/{event}:
+    put:
+      tags: [通知]
+      summary: 保存模板（title/body 均空 = 删除配置回退默认；支持 {domain}/{expires}/{days_left}/{status}/{error} 变量）
+      parameters:
+        - name: event
+          in: path
+          required: true
+          schema: { type: string, enum: [cert_expiring, renew_success, renew_failed, issue_success, issue_failed, deploy_success, deploy_failed] }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title: { type: string, maxLength: 1000 }
+                body: { type: string, maxLength: 10000 }
+      responses:
+        "200": { $ref: "#/components/responses/OK" }
+  /notification-send-logs:
+    get:
+      tags: [通知]
+      summary: 通知发送历史（分页/状态/关键字筛选）
+      parameters:
+        - { $ref: "#/components/parameters/Limit" }
+        - { $ref: "#/components/parameters/Offset" }
+        - name: status
+          in: query
+          schema: { type: string, enum: [success, failed] }
+        - name: keyword
+          in: query
+          schema: { type: string, description: "规则/渠道/证书模糊搜索" }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/SendLog" }
+  /notification-send-logs/export:
+    get:
+      tags: [通知]
+      summary: 导出发送历史 CSV（上限 10000 条）
+      responses:
+        "200":
+          description: CSV 文件
+          content:
+            text/csv: { schema: { type: string, format: binary } }
+  /api-tokens:
+    get:
+      tags: [系统]
+      summary: API Token 列表（admin）
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ApiToken" }
+    post:
+      tags: [系统]
+      summary: 创建 API Token（admin；仅创建时返回明文）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string }
+                ttl_days: { type: integer, description: "有效期天数，0 永不过期" }
+                scopes:
+                  type: array
+                  items: { type: string, enum: [all, certificates:read, certificates:write, accounts:read, accounts:write, deploy:read, deploy:write, notify:read, notify:write, admin:read, admin:write] }
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token: { type: string, description: "明文 Token，仅此一次" }
+  /api-tokens/{id}:
+    delete:
+      tags: [系统]
+      summary: 吊销 Token（admin）
+      parameters:
+        - { $ref: "#/components/parameters/ID" }
+      responses:
+        "200": { $ref: "#/components/responses/OK" }
+  /agents:
+    get:
+      tags: [Agent]
+      summary: Agent 列表（登录用户可读；管理操作需 admin）
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Agent" }
+    post:
+      tags: [Agent]
+      summary: 创建 Agent（admin；返回一次性 Token）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string }
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: string }
+                  token: { type: string, description: "Agent Token，仅此一次" }
+  /agents/{id}:
+    get:
+      tags: [Agent]
+      summary: 查看单个 Agent
+      parameters:
+        - { $ref: "#/components/parameters/ID" }
+      responses:
+        "200": { $ref: "#/components/schemas/Agent" }
+    put:
+      tags: [Agent]
+      summary: 重命名 Agent（admin）
+      parameters:
+        - { $ref: "#/components/parameters/ID" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string }
+      responses:
+        "200": { $ref: "#/components/schemas/Agent" }
+  /agents/{id}/tasks:
+    get:
+      tags: [Agent]
+      summary: Agent 任务历史（最近 50 条）
+      parameters:
+        - { $ref: "#/components/parameters/ID" }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/AgentTask" }
+  /agents/binaries:
+    get:
+      tags: [Agent]
+      summary: 已上传 Agent 版本列表
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { type: object, properties: { version: { type: string }, size: { type: integer }, sha256: { type: string }, created_at: { type: string, format: date-time } } }
+    post:
+      tags: [Agent]
+      summary: 上传 Agent 二进制（multipart: version + file，SHA256 落盘）
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [version, file]
+              properties:
+                version: { type: string, description: "版本号（防路径遍历）" }
+                file: { type: string, format: binary }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema: { type: object, properties: { version: { type: string }, sha256: { type: string } } }
+  /agents/{id}/upgrade:
+    post:
+      tags: [Agent]
+      summary: 下发 Agent 升级指令（SHA256 固定为上传时值）
+      parameters:
+        - { $ref: "#/components/parameters/ID" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [version]
+              properties:
+                version: { type: string }
+      responses:
+        "200": { $ref: "#/components/responses/OK" }
+  /agents/{id}/enabled:
+    post:
+      tags: [Agent]
+      summary: 启用/禁用 Agent（软白名单）
+      parameters:
+        - { $ref: "#/components/parameters/ID" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [enabled]
+              properties:
+                enabled: { type: boolean }
+      responses:
+        "200": { $ref: "#/components/responses/OK" }
+  /agent/register:
+    post:
+      tags: [Agent]
+      summary: Agent 注册/心跳（出站协议，X-Agent-Token）
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                token: { type: string }
+                version: { type: string }
+                os: { type: string }
+      responses:
+        "200": { description: 注册成功 }
+  /agent/tasks:
+    get:
+      tags: [Agent]
+      summary: Agent 拉取待执行部署任务（X-Agent-Token）
+      security: []
+      responses:
+        "200":
+          content:
+            application/json:
+              schema: { type: object, properties: { task: { $ref: "#/components/schemas/AgentTask", nullable: true } } }
+  /agent/tasks/{id}/result:
+    post:
+      tags: [Agent]
+      summary: Agent 回传任务结果
+      security: []
+      parameters:
+        - { $ref: "#/components/parameters/ID" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [task_id, success]
+              properties:
+                task_id: { type: string }
+                success: { type: boolean }
+                checksum: { type: string }
+                message: { type: string }
+      responses:
+        "200": { $ref: "#/components/responses/OK" }
+  /agent/upgrade:
+    get:
+      tags: [Agent]
+      summary: Agent 查询升级指令（附带 SHA256）
+      security: []
+      responses:
+        "200":
+          content:
+            application/json:
+              schema: { type: object, properties: { upgrade: { type: object, nullable: true, properties: { version: { type: string }, sha256: { type: string } } } } }
+  /agent/binaries/{version}/download:
+    get:
+      tags: [Agent]
+      summary: Agent 下载指定版本二进制（仅允许下发给自己的版本）
+      security: []
+      parameters:
+        - { name: version, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: 二进制流
+          content:
+            application/octet-stream: { schema: { type: string, format: binary } }
+        "403": { description: 未下发该版本 }
+  /agents/batch-upgrade:
+    post:
+      tags: [Agent]
+      summary: 批量升级（上限 50）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ids, version]
+              properties:
+                ids: { type: array, items: { type: string } }
+                version: { type: string }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BatchResult" }
+  /audit-logs:
+    get:
+      tags: [日志]
+      summary: 审计日志（admin；username/action 前缀/keyword 筛选）
+      parameters:
+        - { $ref: "#/components/parameters/Limit" }
+        - { $ref: "#/components/parameters/Offset" }
+        - name: username
+          in: query
+          schema: { type: string }
+        - name: action
+          in: query
+          schema: { type: string, description: "动作前缀，如 certificate." }
+        - name: keyword
+          in: query
+          schema: { type: string }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/AuditLog" }
+  /audit-logs/export:
+    get:
+      tags: [日志]
+      summary: 导出审计日志 CSV（admin）
+      responses:
+        "200":
+          description: CSV 文件
+          content:
+            text/csv: { schema: { type: string, format: binary } }
+  /task-logs:
+    get:
+      tags: [日志]
+      summary: 任务日志列表（调度器扫描/续期记录）
+      parameters:
+        - { $ref: "#/components/parameters/Limit" }
+        - { $ref: "#/components/parameters/Offset" }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/TaskLog" }
+  /task-logs/scan:
+    post:
+      tags: [日志]
+      summary: 手动触发扫描（证书检查 + 自动续期 + 到期提醒）
+      responses:
+        "200": { $ref: "#/components/responses/OK" }
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: 登录/刷新获取的 access_token
+    apiToken:
+      type: apiKey
+      in: header
+      name: X-API-Token
+      description: 界面创建的 API Token（按 scope 授权）
+  parameters:
+    ID:
+      name: id
+      in: path
+      required: true
+      schema: { type: string }
+    Limit:
+      name: limit
+      in: query
+      schema: { type: integer, default: 50, maximum: 200 }
+    Offset:
+      name: offset
+      in: query
+      schema: { type: integer, default: 0 }
+  responses:
+    OK:
+      description: 操作成功
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              ok: { type: boolean, example: true }
+    Unauthorized:
+      description: 未认证或令牌无效
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error: { type: string }
+  schemas:
+    Envelope:
+      type: object
+      description: 统一响应信封（所有 JSON 接口）
+      properties:
+        code:
+          oneOf:
+            - { type: integer, example: 0, description: 成功 }
+            - { type: string, description: 错误码 }
+        message: { type: string }
+        trace_id: { type: string, description: 请求追踪 ID }
+        timestamp: { type: string, format: date-time }
+        data: { description: 业务数据；错误时为 null }
+    ErrorEnvelope:
+      type: object
+      properties:
+        code: { type: string }
+        message: { type: string }
+        trace_id: { type: string }
+        timestamp: { type: string, format: date-time }
+        data: { nullable: true, default: null }
+    Page:
+      type: object
+      description: 分页响应（data 层）
+      properties:
+        items: { type: array }
+        total: { type: integer }
+        limit: { type: integer }
+        offset: { type: integer }
+    User:
+      type: object
+      properties:
+        id: { type: string }
+        username: { type: string }
+        role: { type: string, enum: [admin, operator, readonly] }
+        status: { type: string, enum: [active, disabled] }
+        must_change_password: { type: boolean }
+        created_at: { type: string, format: date-time }
+    Certificate:
+      type: object
+      properties:
+        id: { type: string }
+        domains: { type: array, items: { type: string } }
+        primary_domain: { type: string }
+        provider: { type: string }
+        status: { type: string, enum: [pending, valid, expiring, expired, revoked, failed] }
+        issuer_ca: { type: string }
+        not_before: { type: string, format: date-time }
+        not_after: { type: string, format: date-time }
+        verification: { type: string, enum: [http01, dns01] }
+        dns_provider_account_id: { type: string, description: "DNS 验证账户 ID（可空，优先于 dns_config）" }
+        deploy_target_ids: { type: array, items: { type: string } }
+        notify_events:
+          type: array
+          items: { type: string, enum: [cert_expiring, renew_success, renew_failed, issue_success, issue_failed, deploy_success, deploy_failed] }
+          description: "该证书订阅的通知事件（空数组=全部事件可通知）"
+        contact_name: { type: string, description: "申请人快照（签发时固化，不关联申请人表）" }
+        contact_email: { type: string }
+        contact_phone: { type: string }
+        last_error: { type: string }
+        days_to_expire: { type: integer }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    Order:
+      type: object
+      properties:
+        id: { type: string }
+        type: { type: string, enum: [issue, renew] }
+        status: { type: string, enum: [running, success, failed] }
+        error: { type: string }
+        attempts: { type: integer }
+        started_at: { type: string, format: date-time }
+        finished_at: { type: string, format: date-time, nullable: true }
+    Account:
+      type: object
+      properties:
+        id: { type: string }
+        provider: { type: string, enum: [acme, aliyun, tencent] }
+        name: { type: string }
+        directory_url: { type: string }
+        contact: { type: string }
+        status: { type: string }
+        last_error: { type: string }
+        created_at: { type: string, format: date-time }
+    DnsAccount:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        provider: { type: string, enum: [alidns, cloudflare, dnspod, godaddy] }
+        has_credentials: { type: boolean }
+        status: { type: string }
+        last_error: { type: string }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+        config: { type: object, description: "仅详情返回，敏感键置空" }
+    DeployTarget:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        type: { type: string }
+        enabled: { type: boolean }
+        last_status: { type: string }
+        last_error: { type: string }
+        created_at: { type: string, format: date-time }
+        config: { type: object, description: "仅 GET 单条返回解密配置" }
+    ContactPerson:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        email: { type: string }
+        phone: { type: string }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    NotificationRule:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        event: { type: string }
+        channel_ids: { type: array, items: { type: string } }
+        days_before: { type: array, items: { type: integer } }
+        enabled: { type: boolean }
+        created_at: { type: string, format: date-time }
+    Channel:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        type: { type: string }
+        enabled: { type: boolean }
+        config: { type: object, description: "仅详情端点返回；敏感键（password/secret/key）置空" }
+        created_at: { type: string, format: date-time }
+    Template:
+      type: object
+      properties:
+        event: { type: string }
+        title: { type: string }
+        body: { type: string }
+        updated_at: { type: string, format: date-time }
+    SendLog:
+      type: object
+      properties:
+        id: { type: string }
+        cert_id: { type: string }
+        rule_name: { type: string }
+        channel_name: { type: string }
+        event: { type: string }
+        status: { type: string, enum: [success, failed] }
+        detail: { type: string }
+        sent_at: { type: string, format: date-time }
+    ApiToken:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        scopes: { type: array, items: { type: string } }
+        expires_at: { type: string, format: date-time, nullable: true }
+        last_used_at: { type: string, format: date-time, nullable: true }
+        created_at: { type: string, format: date-time }
+    Agent:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        status: { type: string, enum: [online, offline] }
+        enabled: { type: boolean }
+        last_seen_at: { type: string, format: date-time, nullable: true }
+        version: { type: string }
+        os: { type: string }
+        created_at: { type: string, format: date-time }
+    AgentTask:
+      type: object
+      properties:
+        id: { type: string }
+        certificate_id: { type: string }
+        target_id: { type: string }
+        status: { type: string, enum: [pending, running, success, failed] }
+        message: { type: string }
+        created_at: { type: string, format: date-time }
+        finished_at: { type: string, format: date-time, nullable: true }
+    AuditLog:
+      type: object
+      properties:
+        id: { type: string }
+        username: { type: string }
+        action: { type: string }
+        resource: { type: string }
+        detail: { type: string }
+        ip: { type: string }
+        created_at: { type: string, format: date-time }
+    TaskLog:
+      type: object
+      properties:
+        id: { type: string }
+        type: { type: string }
+        status: { type: string, enum: [running, success, failed] }
+        detail: { type: string }
+        started_at: { type: string, format: date-time }
+        finished_at: { type: string, format: date-time, nullable: true }
+    DeployRecord:
+      type: object
+      properties:
+        id: { type: string }
+        target_id: { type: string }
+        certificate_id: { type: string }
+        status: { type: string, enum: [running, success, failed] }
+        checksum: { type: string }
+        message: { type: string }
+        retries: { type: integer }
+        deployed_at: { type: string, format: date-time, nullable: true }
+        created_at: { type: string, format: date-time }
+    BatchResult:
+      type: object
+      properties:
+        success: { type: integer }
+        failed:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: string }
+              error: { type: string }
+security:
+  - bearerAuth: []
+  - apiToken: []

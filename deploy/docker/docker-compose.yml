@@ -1,0 +1,22 @@
+services:
+  argus:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile
+    container_name: argus
+    ports:
+      - "8443:8443"
+    volumes:
+      - argus-data:/data
+    environment:
+      ARGUS_JWT_SECRET: ${ARGUS_JWT_SECRET:?请在 .env 中设置 ARGUS_JWT_SECRET}
+      ARGUS_MASTER_KEY: ${ARGUS_MASTER_KEY:?请在 .env 中设置 ARGUS_MASTER_KEY}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8443/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  argus-data:

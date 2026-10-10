@@ -1,0 +1,10 @@
+# Argus 容器默认配置（部署于 Docker 镜像）
+server:
+  listen: ":8443"
+storage:
+  driver: "sqlite"
+  dsn: "/data/argus.db"
+scheduler:
+  enabled: true
+  scan_minutes: 60
+  renew_days_before: 30

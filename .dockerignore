@@ -1,0 +1,28 @@
+# Docker 构建上下文忽略清单
+# 后端阶段会 COPY . .，需排除本机运行时数据、密钥与构建产物；
+# 注意保留 web/ 源码（前端阶段 COPY web/ 构建）与 webassets/（除 dist 外）。
+
+# 运行数据与本地数据库（含 SQLite 私钥，绝不入镜像）
+data/
+*.db
+*.db-shm
+*.db-wal
+.env
+
+# 版本控制
+.git/
+
+# 构建产物（webassets/dist 由 frontend 阶段产出并通过 COPY --from 注入）
+build/
+dist/
+**/node_modules/
+web/dist/
+web/*.tsbuildinfo
+webassets/dist/
+site-docs/.vitepress/dist/
+site-docs/docs/.vitepress/dist/
+
+# 本地日志/临时文件
+*.log
+*.pid
+.tmp

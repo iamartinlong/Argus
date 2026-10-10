@@ -1,0 +1,13 @@
+[Unit]
+Description=Argus Agent
+After=network.target
+
+[Service]
+Type=simple
+User=root
+ExecStart=/usr/local/bin/argus-agent --config /etc/argus-agent/agent.json
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,19 @@
+[Unit]
+Description=Argus SSL Certificate Manager
+After=network.target
+
+[Service]
+Type=simple
+User=argus
+Group=argus
+WorkingDirectory=/opt/argus
+EnvironmentFile=-/etc/argus.env
+ExecStart=/usr/local/bin/argus serve --config /etc/argus/config.yaml
+Restart=on-failure
+RestartSec=10
+# 安全加固
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
