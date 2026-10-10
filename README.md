@@ -28,6 +28,26 @@
 | 💻 Web + CLI | React 管理后台 + cobra CLI（本地进程内 / 远程 API Token 模式） |
 | 📦 单二进制 | 前端产物 go:embed 内嵌，Windows 服务 / systemd / Docker 一键部署 |
 
+## 功能展示
+
+以下截图来自本地演示环境（1440×900，含演示数据）：
+
+| 安装向导（密钥一键生成） | 仪表盘 |
+|---|---|
+| ![安装向导](docs/screenshots/setup-wizard.png) | ![仪表盘](docs/screenshots/dashboard.png) |
+
+| 证书管理（状态/到期一目了然） | 证书详情 |
+|---|---|
+| ![证书管理](docs/screenshots/certificates.png) | ![证书详情](docs/screenshots/certificate-detail.png) |
+
+| 部署目标（通道 × 场景） | 通知渠道 |
+|---|---|
+| ![部署目标](docs/screenshots/deploy-targets.png) | ![通知渠道](docs/screenshots/notification-channels.png) |
+
+| 任务日志（摘要/明细） | |
+|---|---|
+| ![任务日志](docs/screenshots/task-logs.png) | 更多功能见[文档站](https://iamartinlong.github.io/Argus/) |
+
 ## 架构
 
 ```
