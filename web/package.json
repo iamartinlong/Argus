@@ -10,7 +10,7 @@
   "homepage": "https://github.com/iamartinlong/Argus#readme",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "tsc -b && vite build && node scripts/restore-embed-placeholder.mjs",
     "lint": "oxlint",
     "test": "vitest run",
     "test:watch": "vitest",

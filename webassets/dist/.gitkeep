@@ -1,3 +1,1 @@
-# 占位文件：保证 go:embed all:dist 在未构建前端时也可编译（go build/vet/test 开箱即跑）。
-# 真实前端产物由 make build / web npm run build 生成并覆盖本目录内容。
-# 删除本文件会导致 go build 报 "pattern all:dist: no matching files found"。
+# placeholder for go:embed all:dist (restored by web/scripts/restore-embed-placeholder.mjs)

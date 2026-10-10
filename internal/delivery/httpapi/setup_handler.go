@@ -61,6 +61,20 @@ func newSetupHandler(deps HandlerDeps, cfg config.Config, auth func(http.Handler
 	if lockout <= 0 {
 		lockout = 15
 	}
+	// cfg 未携带密钥时（调用方传入 Default/测试直构）回退读取配置文件：
+	// 安装向导的密钥基线是 config.yaml；ENV 仍覆盖文件值（下方统一处理）。
+	if deps.SetupConfigPath != "" {
+		if cfg.Security.JWTSecret == "" || cfg.Security.MasterKey == "" {
+			if fc, err := config.LoadFileRaw(deps.SetupConfigPath); err == nil {
+				if cfg.Security.JWTSecret == "" {
+					cfg.Security.JWTSecret = fc.Security.JWTSecret
+				}
+				if cfg.Security.MasterKey == "" {
+					cfg.Security.MasterKey = fc.Security.MasterKey
+				}
+			}
+		}
+	}
 	jwtEnvName := cfg.Security.JWTSecretEnv
 	if jwtEnvName == "" {
 		jwtEnvName = "ARGUS_JWT_SECRET"

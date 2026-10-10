@@ -42,7 +42,7 @@ Thumbs.db
 config.local.yaml
 .env
 
-# ��ʱ�ļ�
+# 临时文件
 .tmp
 *.tmp
 *.pid
