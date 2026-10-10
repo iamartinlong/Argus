@@ -46,6 +46,8 @@ argus.exe --config "D:\argus\config.yaml" init-admin --username admin --password
 - `≥1.0.1`：已实现原生 `Windows Service Control Handler`（`cmd/argus/service_windows.go:1` `svc.IsWindowsService + svc.Run`），`sc create Argus` 直装即 `RUNNING`，无需 NSSM/WinSW
 - `<1.0.1`：控制台程序直装必 `1053 服务没有及时响应启动或控制请求`，需 `NSSM` 包装：`nssm install Argus "D:\argus\argus.exe" "serve --config D:\argus\config.yaml"` + `nssm set Argus AppDirectory D:\argus`
 
+> 从旧版本升级的完整步骤（含备份、回滚、验证清单）见[升级指南](../upgrade.md)。
+
 ## 注意事项
 
 - 数据目录建议非系统盘并加入备份；`argus.db` 与 `ARGUS_MASTER_KEY` 同等保密（丢则已加密凭据无法解密）

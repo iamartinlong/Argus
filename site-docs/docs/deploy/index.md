@@ -12,6 +12,8 @@ Argus 分**服务端**与**部署目标**两部分部署：
 | [Windows 服务](/deploy/server/windows) | Windows 服务器生产部署 | 一键脚本 `install-service.ps1` |
 | [Docker](/deploy/server/docker) | 快速试用 / 容器化环境 | 一键脚本 `up.sh` |
 
+> 已在旧版本上运行？升级见[升级指南](/deploy/upgrade)（替换二进制 + 重启，数据自动迁移）。
+
 ## 部署目标（证书推送通道）
 
 证书签发后自动推送到目标服务器。采用 **连接通道 × 应用场景** 正交模型
@@ -38,5 +40,6 @@ Argus 分**服务端**与**部署目标**两部分部署：
 
 ## 下一步
 
+- [升级指南](/deploy/upgrade)
 - [服务端部署总览](/deploy/server/)
 - [部署目标总览](/deploy/deploy-targets/)

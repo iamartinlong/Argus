@@ -48,6 +48,7 @@ export default defineConfig({
           text: "部署指南",
           items: [
             { text: "总览", link: "/deploy/" },
+            { text: "升级指南", link: "/deploy/upgrade" },
             {
               text: "服务端部署",
               collapsed: false,

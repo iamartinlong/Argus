@@ -101,6 +101,7 @@ make agent     # 产物 build/argus-agent
 
 > 部署后访问 `http://<服务器>:8443`，**首次打开自动进入安装向导**（可视化生成密钥、创建管理员），
 > 无需手动执行 `init-admin` 或编辑配置文件。忘记密码可用 `argus reset-password` 本地重置。
+> 从旧版本升级见[升级指南](site-docs/docs/deploy/upgrade.md)（替换二进制 + 重启，数据自动迁移）。
 > 详细步骤见[文档站部署指南](#文档站)。
 
 ### 签发第一张证书

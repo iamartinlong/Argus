@@ -24,7 +24,7 @@
 ### 文档
 
 - 新增 `CHANGELOG.md`（Keep a Changelog 规范，含 1.0.0–1.1.0 完整版本史）
-- 用户手册新增「密码管理」章节（自助改密 + `reset-password` 全流程）
+- 新增升级指南（文档站）：通用原则（备份/自动迁移/回滚）、Windows 服务、Linux systemd、Docker、Agent 五种升级路径、1.0.x→1.1 变化清单、升级后验证清单- 用户手册新增「密码管理」章节（自助改密 + `reset-password` 全流程）
 - 清理仓库内部信息：删除陈旧重复的 `docs/openapi.yaml`（唯一事实源 `webassets/openapi.yaml`）；里程碑文档的运维遗留改写为通用建议
 
 ## [1.1.0] - 2026-10-10
