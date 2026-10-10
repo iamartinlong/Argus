@@ -143,6 +143,11 @@ make test    # 单元 + 集成测试
 - 单元 > 集成 > E2E，核心层覆盖率 ≥ 80%
 - Agent 心跳超时（90s）自动置离线；任务超时未回执自动失败
 
+## 变更记录
+
+见 [CHANGELOG.md](CHANGELOG.md)（遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 规范）。
+每次推送 `v*` tag 发布时，CI 会强制校验 CHANGELOG 中存在对应版本条目。
+
 ## 许可
 
 [MIT License](LICENSE)

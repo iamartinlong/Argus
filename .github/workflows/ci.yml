@@ -117,6 +117,15 @@ jobs:
           done
           ( cd pkg && sha256sum *.zip > SHA256SUMS.txt )
           ls -lh pkg/
+      - name: Verify CHANGELOG entry
+        run: |
+          set -euo pipefail
+          ver="${GITHUB_REF_NAME#v}"
+          if ! grep -q "^## \[${ver}\]" CHANGELOG.md; then
+            echo "::error::CHANGELOG.md 缺少 ${ver} 版本条目，发布中止（请按 Keep a Changelog 规范补充）"
+            exit 1
+          fi
+          echo "CHANGELOG entry for ${ver} found"
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
