@@ -49,12 +49,16 @@ argus init-admin --username admin --password "你的初始密码"
 argus serve --config config.yaml
 ```
 
+> **Windows PowerShell**：不在当前目录查找可执行文件，直接输入 `argus` 会失败；
+> 请使用 `.\argus.exe`（先 `cd` 到所在目录）或完整路径 `& "D:\argus\argus.exe"`。
+> 环境变量用 `$env:ARGUS_JWT_SECRET = "..."` 设置。
+
 ## 首次登录
 
 1. 使用向导（或 `init-admin`）创建的 `admin` 与密码登录
 2. 进入「SSL 渠道账户」创建签发渠道
 
-> 忘记密码：`argus reset-password --config config.yaml --username admin --password "新口令"`（本地直连数据库，无需密钥，详见[故障排查](/ops/troubleshooting)）
+> 忘记密码：`argus reset-password --config config.yaml --username admin --password "NewPass1234"`（本地直连数据库，无需密钥；密码需 ≥12 位且含大小写字母与数字，详见[故障排查](/ops/troubleshooting)）
 
 ## 配置文件
 

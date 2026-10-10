@@ -20,7 +20,8 @@
 ## 部署后
 
 - 访问 `http://<服务器>:8443`
-- 初始化管理员：`argus init-admin --username admin --password <强密码>`
+- **首次打开自动进入安装向导**（≥1.1.0）：可视化生成密钥、创建管理员，无需手动执行 `init-admin`
+- 命令行备选：`argus init-admin --username admin --password <强密码>`（≥12 位，含大小写字母与数字）
 - 配置签发渠道账户（ACME / 阿里云 / 腾讯云）后即可签发
 
-> 生产环境安全建议见 [运维指南 · 安全](/ops/security)。
+> 生产环境安全建议见 [运维指南 · 安全](/ops/security)；从旧版本升级见[升级指南](/deploy/upgrade)。

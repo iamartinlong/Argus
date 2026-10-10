@@ -24,18 +24,20 @@ powershell -ExecutionPolicy Bypass -File deploy\windows\install-service.ps1 -Uni
 
 ```powershell
 # ≥1.1.0 可跳过本节：直接 serve，浏览器打开安装向导可视化配置
-argus.exe serve --config "D:\argus\config.yaml"  # 前台直跑可立即看到首错（比服务日志更直接）
+# 注意：PowerShell 不在当前目录查找可执行文件，需用 .\ 前缀或完整路径
+.\argus.exe serve --config "D:\argus\config.yaml"  # 前台直跑可立即看到首错（比服务日志更直接）
 
 # 命令行备选（沿用旧流程亦可）
 $env:ARGUS_JWT_SECRET = "..."  # ≥32 字符，internal/config/config.go:153
 $env:ARGUS_MASTER_KEY = "..."  # ≥32 字符，原文/hex/base64 解码后 32 字节，internal/infrastructure/crypto/aes.go:35
-argus.exe --config "D:\argus\config.yaml" init-admin --username admin --password "12位+强口令"
+.\argus.exe --config "D:\argus\config.yaml" init-admin --username admin --password "NewPass1234"
 ```
 
 ## 前置与配置要点
 
 - **系统**：Windows Server 2016+（IIS 10 验证通过），`argus.exe` 为 Go 静态二进制无 .NET 依赖
 - **权限**：安装/启停服务需**管理员 PowerShell**（脚本内 `net session` 校验，`deploy/windows/install-service.ps1:19`）
+- **PowerShell 执行**：PowerShell 默认**不在当前目录**查找可执行文件，直接输入 `argus.exe` 会报找不到命令；需写 `.\argus.exe`（先 `cd` 到所在目录）或完整路径 `& "D:\argus\argus.exe"`（`cmd.exe` 无此限制）
 - **config.yaml**：从 `config.yaml.example` 复制后必改 `storage.dsn` 为**绝对路径**（如 `D:/argus/data/argus.db`），相对路径 `.\data\argus.db` 会导致服务（`cwd=C:\Windows\System32`）与前台（`cwd=D:\argus`）双库，出现“已创建用户但登录 401”；`server.listen: ":8443"` 保持
 - **环境变量**：`ARGUS_JWT_SECRET`/`ARGUS_MASTER_KEY` 须设为 **Machine 级**（`[Environment]::SetEnvironmentVariable(...,"Machine")`），`User` 级或会话级 `$env:` 服务进程（`LocalSystem`）读不到，报 `jwt secret is required` `cmd/argus/cmd/serve.go:360`
 - **本机 IIS 同机**：`Argus` 服务须以 `LocalSystem` 运行才有 `Import-PfxCertificate`/`netsh` 管理员权限（`site-docs/docs/deploy/deploy-targets/iis.md:52`）
@@ -62,5 +64,6 @@ argus.exe --config "D:\argus\config.yaml" init-admin --username admin --password
 | `jwt secret is required` / `缺少主密钥` | 仅设 `$env:` 会话级或长度 `<32` | `Machine` 级重设，`len≥32`（`internal/config/config.go:153` / `aes.go:52`） |
 | `系统中已存在用户` 但登录 `401` | `dsn` 相对路径双库 | 改绝对路径，`Stop-Service + Remove-Item 错位库 + --config` 显式重建 |
 | 登录后 `PUT /users/me/password ERR_CONNECTION_REFUSED` 或改密后服务 `STOPPED` | `<1.0.1` 旧版服务 `1053` 假死，非改密接口问题 | 升级 `1.0.1` 后 `PUT 200`，首改密 `MustChangePassword` 自动清零 |
-| 忘记 admin 密码 | 无邮件找回 | `Stop-Service Argus` 后 `argus.exe --config D:\argus\config.yaml reset-password --username admin --password "新口令"`（无需密钥，会话全吊销），详见[故障排查](../../ops/troubleshooting.md) |
+| 忘记 admin 密码 | 无邮件找回 | `Stop-Service Argus` 后 `.\argus.exe --config D:\argus\config.yaml reset-password --username admin --password "NewPass1234"`（无需密钥，会话全吊销），详见[故障排查](../../ops/troubleshooting.md) |
+| 输入 `argus.exe` / `argus` 提示“无法识别为 cmdlet” | PowerShell 默认不在当前目录查找可执行文件（`cmd.exe` 无此限制） | 使用 `.\argus.exe`（先 `cd` 到目录）或完整路径 `& "D:\argus\argus.exe"` |
 | `bind: address already in use :8443` | 端口被 IIS/其他占用 | `netstat -ano \| findstr 8443` 改 `server.listen` |

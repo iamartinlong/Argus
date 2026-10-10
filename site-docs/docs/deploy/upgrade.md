@@ -42,7 +42,11 @@ Get-Service Argus                      # 应为 Running
 
 - `config.yaml`、`data\`、Machine 级 `ARGUS_*` 环境变量**都不要动**
 - 也可重新运行 `install-service.ps1` 完成升级（脚本会更新服务注册并启动；服务运行中需先 `Stop-Service`）
-- 打开 `http://localhost:8443`：已有用户直接登录；**忘记管理员密码**用 `argus.exe --config D:\argus\config.yaml reset-password --username admin --password "新口令"`
+- 打开 `http://localhost:8443`：已有用户直接登录；**忘记管理员密码**用下面的命令重置（PowerShell 需完整路径或 `.\argus.exe`）：
+
+```powershell
+& "D:\argus\argus.exe" --config "D:\argus\config.yaml" reset-password --username admin --password "NewPass1234"
+```
 
 ## Linux（systemd）升级
 
@@ -137,7 +141,7 @@ sudo systemctl start argus
 
 ## 升级后验证清单
 
-- [ ] `argus version` 输出版本号正确，服务/容器状态正常
+- [ ] `argus version` 输出版本号正确（Windows：`& "D:\argus\argus.exe" version`），服务/容器状态正常
 - [ ] 能正常登录；仪表盘统计有数据
 - [ ] 证书列表/详情正常，到期状态刷新
 - [ ] 手动触发一次「扫描」（任务日志出现成功记录）

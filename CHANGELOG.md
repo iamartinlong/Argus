@@ -24,7 +24,8 @@
 ### 文档
 
 - 新增 `CHANGELOG.md`（Keep a Changelog 规范，含 1.0.0–1.1.0 完整版本史）
-- 新增升级指南（文档站）：通用原则（备份/自动迁移/回滚）、Windows 服务、Linux systemd、Docker、Agent 五种升级路径、1.0.x→1.1 变化清单、升级后验证清单- 用户手册新增「密码管理」章节（自助改密 + `reset-password` 全流程）
+- 新增升级指南（文档站）：通用原则（备份/自动迁移/回滚）、Windows 服务、Linux systemd、Docker、Agent 五种升级路径、1.0.x→1.1 变化清单、升级后验证清单
+- 文档示例修正：`reset-password` 示例密码统一为满足策略的 `NewPass1234`（原 `NewPass123` 仅 10 位，低于 12 位下限）；PowerShell 代码块统一使用 `.\argus.exe` 或完整路径（PowerShell 不在当前目录查找可执行文件），并在 Windows 部署文档补充该坑位说明- 用户手册新增「密码管理」章节（自助改密 + `reset-password` 全流程）
 - 清理仓库内部信息：删除陈旧重复的 `docs/openapi.yaml`（唯一事实源 `webassets/openapi.yaml`）；里程碑文档的运维遗留改写为通用建议
 
 ## [1.1.0] - 2026-10-10

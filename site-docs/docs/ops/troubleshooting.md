@@ -9,7 +9,7 @@
 | `1053 服务没有及时响应启动或控制请求`，`SCM 30000ms 超时` | `<1.0.1` 无 `ServiceMain` 必现，升级 `≥1.0.1`（`cmd/argus/service_windows.go:1` `svc.Run`）；`Machine` 变量改后未 `Restart-Service` |
 | `bind: address already in use` | `netstat -ano \| findstr 8443`，端口被 IIS/其他占用，改 `server.listen` |
 | 端口监听但页面 500 | 检查数据目录权限、`storage.dsn` 可写；`System32\data` 双库见下 |
-| `系统中已存在用户` 但登录 `401` | `storage.dsn` 相对路径 `.\data\argus.db` 导致前台 `D:\argus` 与服务 `C:\Windows\System32` 双库；改绝对路径 `D:/argus/data/argus.db`，`Stop-Service + Remove-Item 错位库 + argus --config D:\argus\config.yaml init-admin` |
+| `系统中已存在用户` 但登录 `401` | `storage.dsn` 相对路径 `.\data\argus.db` 导致前台 `D:\argus` 与服务 `C:\Windows\System32` 双库；改绝对路径 `D:/argus/data/argus.db`，`Stop-Service + Remove-Item 错位库 + .\argus.exe --config D:\argus\config.yaml init-admin` |
 | 登录成功但 `PUT /users/me/password ERR_CONNECTION_REFUSED` / 改密后 `STOPPED` | 同 `1053` 假死，`1.0.1` 已修（`PUT 200`，`MustChangePassword` 清零） |
 
 > 前台直跑排障（必做）：`Stop-Service Argus; $env:ARGUS_*=[Environment]::GetEnvironmentVariable(...,"Machine"); & "D:\argus\argus.exe" serve --config "D:\argus\config.yaml"` 首错即根因；`sc qc Argus` 验 `BINARY_PATH_NAME` 引号，`Get-WinEvent System/Provider=Service Control Manager` 验超时。
@@ -56,7 +56,7 @@
 Stop-Service Argus
 
 # 2. 重置密码（显式指定）
-& "D:\argus\argus.exe" --config "D:\argus\config.yaml" reset-password --username admin --password "12位+强口令"
+& "D:\argus\argus.exe" --config "D:\argus\config.yaml" reset-password --username admin --password "NewPass1234"
 
 # 或不传密码：随机生成（首次登录强制修改）
 & "D:\argus\argus.exe" --config "D:\argus\config.yaml" reset-password --username admin

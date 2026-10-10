@@ -38,11 +38,16 @@ Web 无自助找回流程（未接入邮件），由管理员在**服务器本�
 
 ```bash
 # 显式指定新密码（≥12 位，含大小写字母与数字）
-argus reset-password --config config.yaml --username admin --password "NewPass123"
+argus reset-password --config config.yaml --username admin --password "NewPass1234"
 
 # 不传 --password：自动生成随机密码（首次登录强制修改）
 argus reset-password --config config.yaml --username admin
 ```
+
+> **Windows PowerShell 注意**：PowerShell 默认不在当前目录查找可执行文件，直接输入 `argus` 会提示找不到命令。
+> 需使用 `.\argus.exe`（先 `cd` 到所在目录）或完整路径，例如：
+> `& "D:\argus\argus.exe" --config "D:\argus\config.yaml" reset-password --username admin --password "NewPass1234"`。
+> Linux 下二进制位于 `/usr/local/bin/argus`（已在 PATH），可直接使用 `argus`。
 
 要点：
 
