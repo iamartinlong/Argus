@@ -7,6 +7,26 @@
 
 ## [未发布]
 
+### 新增
+
+- **公开发布**：仓库迁移至 GitHub（`github.com/iamartinlong/Argus`），module 路径同步更名；内网 gitea 同步 `main` + tag 并切换默认分支
+- **CI 自动发布**：推 `v*` tag 自动交叉编译 6 平台（windows/linux/darwin × amd64/arm64）→ 打包 zip + SHA256SUMS → 创建 GitHub Release；发布前强制校验 CHANGELOG 存在对应版本条目
+- **文档站 Pages**：main 推送自动构建 VitePress 并部署 GitHub Pages（`iamartinlong.github.io/Argus`）
+- README 增加下载入口（Releases 平台表 + SHA256 校验）与功能展示截图（7 张，本地演示环境实拍）
+- 仓库 About：Description / Website（文档站）/ 14 个 topics
+
+### 修复
+
+- setup handler 在传入配置缺少密钥时回退读取 `config.yaml`
+- CI 干净检出 `go:embed all:dist` 失败：先构建前端再 vet/test；`webassets/dist/.gitkeep` 占位使裸 `go build/vet/test` 开箱可跑
+- `vite build` 的 `emptyOutDir` 会清空占位文件：构建后自动恢复
+
+### 文档
+
+- 新增 `CHANGELOG.md`（Keep a Changelog 规范，含 1.0.0–1.1.0 完整版本史）
+- 用户手册新增「密码管理」章节（自助改密 + `reset-password` 全流程）
+- 清理仓库内部信息：删除陈旧重复的 `docs/openapi.yaml`（唯一事实源 `webassets/openapi.yaml`）；里程碑文档的运维遗留改写为通用建议
+
 ## [1.1.0] - 2026-10-10
 
 ### 新增
