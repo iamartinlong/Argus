@@ -3,6 +3,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Go](https://img.shields.io/badge/Go-1.26-00ADD8.svg)](https://go.dev)
 [![React](https://img.shields.io/badge/React-18-61DAFB.svg)](https://react.dev)
+[![Downloads](https://img.shields.io/github/downloads/iamartinlong/Argus/total.svg)](https://github.com/iamartinlong/Argus/releases)
 
 > **Argus（阿耳戈斯）**：希腊神话中的百眼巨人，无论何时总有一双眼睛在睁着、注视着。
 > SSL 证书自动化的核心正是如此——**永远盯着、到期自动续**。这就是 Argus 名字的由来。
@@ -44,6 +45,23 @@ infrastructure (sqlite / lego+云 SDK / 部署适配器 / 通知渠道 / 调度�
 - **可扩展**：`CertificateProvider`（签发渠道）、`deploy.Adapter`（部署通道）、`MessageSender`（通知渠道）均可插拔
 
 ## 快速开始
+
+### 下载预编译版本（推荐）
+
+每次发版由 CI 自动构建并上传至 [Releases](https://github.com/iamartinlong/Argus/releases/latest)：
+
+| 平台 | 包名 |
+|---|---|
+| Windows (amd64 / arm64) | `argus-v<版本>-windows-amd64.zip` / `argus-v<版本>-windows-arm64.zip` |
+| Linux (amd64 / arm64) | `argus-v<版本>-linux-amd64.zip` / `argus-v<版本>-linux-arm64.zip` |
+| macOS (amd64 / arm64) | `argus-v<版本>-darwin-amd64.zip` / `argus-v<版本>-darwin-arm64.zip` |
+
+每个包内含 `argus`、`argus-agent`、`config.yaml.example`、一键部署脚本（`deploy/`）、LICENSE 与 README，另附 `SHA256SUMS.txt`：
+
+```bash
+# 校验完整性（Linux/macOS）
+sha256sum -c SHA256SUMS.txt
+```
 
 ### 构建
 

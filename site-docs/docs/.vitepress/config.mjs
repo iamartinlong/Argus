@@ -5,6 +5,9 @@ export default defineConfig({
   description: "永不眨眼的 SSL 证书守护者 - 集中式 SSL 证书管理系统",
   lang: "zh-CN",
   lastUpdated: false,
+  // GitHub Pages 项目站点（username.github.io/Argus/）需要 base；
+  // 本地开发（npm run dev）不受影响
+  base: "/Argus/",
   themeConfig: {
     logo: "/logo.svg",
     nav: [

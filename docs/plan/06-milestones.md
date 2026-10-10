@@ -107,11 +107,11 @@
 | P3 | Playwright E2E 冒烟 | M5 预留，视进度 |
 | P3 | CLI 子命令补全 | 现有 `account/serve/cert/backup/root` 已覆盖核心场景；`deploy-target`/`agent`/`notification` 使用频率低，可通过 Web/API 替代，按需再补 |
 
-### 运维遗留（非开发）
+### 运维建议（长期有效）
 
-- 阿里云 AccessKey 轮换（测试凭据曾暴露于对话）
-- `todo.example.com` DNS 指向目标业务机（IIS 绑定已就绪）
-- 本机 agent 进程服务化（`install-windows-service.ps1`）
+- 云厂商 AccessKey 使用最小权限子账号，并定期轮换
+- 定期备份数据库文件与主密钥（两者同等保密，丢失主密钥则已加密凭据无法解密）
+- 业务机 Agent 建议服务化运行（`deploy/agent/install-windows-service.ps1` 或 systemd）
 
 ### 设计备忘：DNS 验证账户持久化（已实现）
 

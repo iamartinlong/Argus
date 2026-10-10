@@ -57,7 +57,7 @@
 2. 后端 download 端点 `format` 分支 + zip 组装 + 兼容 kind
 3. 后端测试（download + security）
 4. 前端 DownloadDialog + 整合按钮
-5. `docs/openapi.yaml` 同步 `format` 参数 + webassets
+5. `webassets/openapi.yaml` 同步 `format` 参数 + webassets
 6. `npm run build` + `go build` + 重启 + 端到端验证
 
 ## 8.4 验收

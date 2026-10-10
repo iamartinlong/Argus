@@ -130,4 +130,4 @@
 - 豁免迁移：`agent_handler.go`（7 处）、`healthz`（1 处）
 - 前端：`api.ts` 拦截器 + 3 分页页；其余页面零改动
 - 测试：httpapi 包约 200 处 JSON 断言迁移
-- 文档：`docs/openapi.yaml` schema 更新
+- 文档：`webassets/openapi.yaml` schema 更新

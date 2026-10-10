@@ -49,7 +49,7 @@ ALTER TABLE certificates ADD COLUMN notify_events TEXT NOT NULL DEFAULT '[]';
 | `internal/infrastructure/storage/postgres/migrate.go` | 迁移 id 15 |
 | `internal/infrastructure/storage/sqlite/certificate_store.go` | `certColumns`/`scan`/`Create`/`Update` 增补列 |
 | `internal/delivery/httpapi/certificate_handler.go` | `issueRequest`/`importRequest` 加 `notify_events`；`certResponse` 回传；新增 `PUT /{id}/notify-events` |
-| `docs/openapi.yaml` | 通知规则 event 枚举 3 处；证书签发/导入/Certificate schema 补 `notify_events` |
+| `webassets/openapi.yaml` | 通知规则 event 枚举 3 处；证书签发/导入/Certificate schema 补 `notify_events` |
 
 ### 前端
 
@@ -131,7 +131,7 @@ func (s *NotificationService) eventSubscribed(cert *domain.Certificate, event do
    已改为直接用 `details["target"]`/`details["error"]` 拼接（与续期/签发分支一致），测试同步修正
    （`internal/application/notification_service.go`、`notification_service_test.go`）。
 2. **OpenAPI 运行态遗漏**：Swagger UI 实际加载的是 `webassets/openapi.yaml`（`go:embed` 注入 `/openapi.yaml`），
-   此前只更新了 `docs/openapi.yaml`。已补齐 webassets：4 处 `notify_events` 字段 + 3 处事件枚举 +
+   此前只更新了 `webassets/openapi.yaml`。已补齐 webassets：4 处 `notify_events` 字段 + 3 处事件枚举 +
    `/certificates/{id}/notify-events` 端点。
 
 ### 遗留次要问题（本次未处理）
