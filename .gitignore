@@ -13,9 +13,13 @@ coverage.out
 # Node / web
 web/node_modules/
 web/dist/
-webassets/dist/
 web/*.tsbuildinfo
 web/.env
+
+# 前端构建产物（webassets/dist 由 web npm run build 产出并 go:embed 内嵌）
+# 仅放行 .gitkeep 占位：保证未构建前端时 go build/vet/test 也能编译
+webassets/dist/*
+!webassets/dist/.gitkeep
 
 # site-docs
 site-docs/node_modules/
@@ -38,7 +42,7 @@ Thumbs.db
 config.local.yaml
 .env
 
-# ��ʱ�ļ�
+# ��ʱ�ļ�
 .tmp
 *.tmp
 *.pid
