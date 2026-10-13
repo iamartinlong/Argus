@@ -14,6 +14,7 @@ import (
 	"software.sslmate.com/src/go-pkcs12"
 
 	"github.com/iamartinlong/Argus/internal/domain"
+	"github.com/iamartinlong/Argus/internal/infrastructure/pkcs12fix"
 	"github.com/iamartinlong/Argus/internal/infrastructure/providers"
 )
 
@@ -500,8 +501,19 @@ func (s *CertificateService) ImportPFX(
 	if err := validNotifyEvents(notifyEvents); err != nil {
 		return nil, err
 	}
+	// BER 编码兼容：部分平台（如阿里云）导出的 PFX 使用 ASN.1 不定长编码，
+	// Go 的 DER 解析器会拒绝；先修复为 DER（含 MAC 重算），失败则按原样尝试
+	// （正常 DER 文件走此分支也无副作用）。
+	repaired, rerr := pkcs12fix.Repair(pfxData, password)
+	if rerr == nil {
+		pfxData = repaired
+	}
 	privKey, leaf, caCerts, err := pkcs12.DecodeChain(pfxData, password)
 	if err != nil {
+		// 密码错误（MAC 校验或私钥包解密失败）与格式问题给出一站式提示
+		if errors.Is(err, pkcs12.ErrIncorrectPassword) || errors.Is(err, pkcs12.ErrDecryption) {
+			return nil, fmt.Errorf("%w: PFX 密码错误（或文件损坏）", domain.ErrInvalidArgument)
+		}
 		return nil, fmt.Errorf("%w: PFX 解析失败（密码错误或格式不符）: %v", domain.ErrInvalidArgument, err)
 	}
 	// 校验私钥与叶子证书公钥匹配，避免导入损坏的证书

@@ -46,3 +46,6 @@ config.local.yaml
 .tmp
 *.tmp
 *.pid
+
+# 本地测试数据（含真实证书/私钥，绝不入库）
+mock-data/

@@ -14,6 +14,16 @@
 
 > 前台直跑排障（必做）：`Stop-Service Argus; $env:ARGUS_*=[Environment]::GetEnvironmentVariable(...,"Machine"); & "D:\argus\argus.exe" serve --config "D:\argus\config.yaml"` 首错即根因；`sc qc Argus` 验 `BINARY_PATH_NAME` 引号，`Get-WinEvent System/Provider=Service Control Manager` 验超时。
 
+## 导入证书失败
+
+- **PFX 报"解析失败 / indefinite length found"**：该 PFX 为 **BER 编码**（ASN.1 不定长）。
+  PKCS#12 规范允许 BER，阿里云等平台导出的 IIS 证书常见此格式；`≥1.1.0` 已内置自动修复
+  （BER→DER 规范化 + MAC 重算），可直接导入。若仍失败请确认密码正确（`pfx-password.txt`）
+- **"PFX 密码错误（或文件损坏）"**：密码不对，或文件传输损坏；用导出时随附的密码文件重试
+- **PEM 导入报"证书/私钥不匹配"**：证书与私钥不是同一对；云厂商下载的 nginx 格式中
+  `*.key` 与 `*.pem` 需配对使用
+- **导入后域名列表为空**：证书无 SAN 且 CN 为空（罕见）；改用 PEM 方式并手填域名
+
 ## 签发失败
 
 - **ACME HTTP-01**：管理服务器 80 端口公网可达？防火墙/NAT 放行？
