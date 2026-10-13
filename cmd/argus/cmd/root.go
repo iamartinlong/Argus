@@ -8,7 +8,7 @@ import (
 )
 
 var (
-	version = "1.1.0"
+	version = "1.1.1"
 
 	// 全局远程模式参数
 	remoteServer string

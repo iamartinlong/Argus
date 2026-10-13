@@ -7,6 +7,8 @@
 
 ## [未发布]
 
+## [1.1.1] - 2026-10-13
+
 ### 新增
 
 - **公开发布**：仓库迁移至 GitHub（`github.com/iamartinlong/Argus`），module 路径同步更名；内网 gitea 同步 `main` + tag 并切换默认分支
@@ -17,15 +19,18 @@
 
 ### 修复
 
+- **导入 BER 编码的 PFX 失败**（阿里云免费证书 IIS 导出为此格式）：PKCS#12 规范允许 BER（ASN.1 不定长），而 Go 解析器只支持 DER。新增 BER→DER 规范化（`internal/infrastructure/asn1ber`）+ PFX 修复管线（`internal/infrastructure/pkcs12fix`，含 RFC 7292 MAC 重算），导入前自动修复；DER 文件零成本直通
 - setup handler 在传入配置缺少密钥时回退读取 `config.yaml`
 - CI 干净检出 `go:embed all:dist` 失败：先构建前端再 vet/test；`webassets/dist/.gitkeep` 占位使裸 `go build/vet/test` 开箱可跑
 - `vite build` 的 `emptyOutDir` 会清空占位文件：构建后自动恢复
 
 ### 文档
 
-- 新增 `CHANGELOG.md`（Keep a Changelog 规范，含 1.0.0–1.1.0 完整版本史）
+- 新增 `CHANGELOG.md`（Keep a Changelog 规范，含 1.0.0–1.1.1 完整版本史）
 - 新增升级指南（文档站）：通用原则（备份/自动迁移/回滚）、Windows 服务、Linux systemd、Docker、Agent 五种升级路径、1.0.x→1.1 变化清单、升级后验证清单
-- 文档示例修正：`reset-password` 示例密码统一为满足策略的 `NewPass1234`（原 `NewPass123` 仅 10 位，低于 12 位下限）；PowerShell 代码块统一使用 `.\argus.exe` 或完整路径（PowerShell 不在当前目录查找可执行文件），并在 Windows 部署文档补充该坑位说明- 用户手册新增「密码管理」章节（自助改密 + `reset-password` 全流程）
+- 用户手册新增「密码管理」章节（自助改密 + `reset-password` 全流程）
+- 文档示例修正：`reset-password` 示例密码统一为满足策略的 `NewPass1234`（原 `NewPass123` 仅 10 位，低于 12 位下限）；PowerShell 代码块统一使用 `.\argus.exe` 或完整路径（PowerShell 不在当前目录查找可执行文件），并在 Windows 部署文档补充该坑位说明
+- 故障排查新增「导入证书失败」小节（BER PFX / 密码错误 / PEM 不匹配）
 - 清理仓库内部信息：删除陈旧重复的 `docs/openapi.yaml`（唯一事实源 `webassets/openapi.yaml`）；里程碑文档的运维遗留改写为通用建议
 
 ## [1.1.0] - 2026-10-10
@@ -36,8 +41,6 @@
 - `security.master_key` 支持直接写入 `config.yaml`（环境变量仍优先覆盖）；缺少密钥时 `serve` 降级为安装模式（仅开放 setup 接口）而非报错退出
 - **`argus reset-password` CLI**：忘记密码时在本机直连数据库重置——免旧密码、无需 JWT/主密钥，重置后吊销该用户全部会话；不传 `--password` 则生成随机密码（首次登录强制修改）
 - Windows 安装脚本：服务就绪（`/healthz` 探测，最多 30s）后自动打开浏览器；支持 `-NoBrowser`、`-Url` 参数
-- **CI/CD**：GitHub Actions——`go vet`/`go test`、Web typecheck/build、6 平台（windows/linux/darwin × amd64/arm64）交叉编译、**推 tag 自动发布 Release**（zip + SHA256SUMS）、**文档站自动部署 GitHub Pages**
-- README 增加下载入口（Releases 平台表 + SHA256 校验）；仓库设置 Description/Website/Topics
 
 ### 变更
 
