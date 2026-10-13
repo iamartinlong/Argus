@@ -86,6 +86,7 @@
 | 密码重置 CLI | `argus reset-password --username X [--password Y]`：本地直连库重置（免旧密码、无需 JWT/主密钥），校验策略+吊销全部会话+清强制改密标志，随机密码时首登强制改密；审计 `password.reset`（`user_service.go` `ResetPassword`） | ✅ |
 | 可视化安装向导（v1.1.0） | 首次打开自动进 `/setup`：欢迎检查→一键生成密钥（写回 config.yaml 自动备份 .bak，MASTER 落盘 `yaml:master_key`）→界面创建管理员；缺密钥时 serve 降级安装模式（仅 setup 路由），安装模式一键重启接力进完整模式（`ARGUS_RESTART_DELAY`），服务模式降级 `Restart-Service` 指引；`GET/POST /api/v1/setup/*` 公开 status/init/generate-keys，restart 走管理员鉴权 | ✅ |
 | 公开发布与 CI/CD | GitHub 仓库（module 更名 `github.com/iamartinlong/Argus`，全新初始提交）；Actions 5 job（vet/test、Web 构建、跨平台产物、**tag 自动发布 Release**（6 平台 zip + SHA256SUMS + CHANGELOG 条目强制校验）、**文档站 Pages**）；内网 gitea 同步 main+tag 并切换默认分支；About/CHANGELOG/README 下载入口与功能截图 | ✅ |
+| BER 编码 PFX 导入修复（v1.1.1） | 阿里云免费证书 IIS 导出为 BER（ASN.1 不定长），Go 解析器只支持 DER 导致导入失败；新增 `internal/infrastructure/asn1ber`（BER→DER 规范化：不定长/分片拍平/内嵌 ASN.1/PKCS#12 隐式变体）+ `internal/infrastructure/pkcs12fix`（规范化 + RFC 7292 MAC 重算）；`ImportPFX` 解析前自动修复；真实 PFX API 端到端验证 | ✅ |
 
 ## 路线图（剩余未开发）
 
