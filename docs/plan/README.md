@@ -14,6 +14,8 @@
 | [05-testing.md](05-testing.md) | 测试策略与 CI |
 | [06-milestones.md](06-milestones.md) | 实施里程碑（M1–M6） |
 | [07-auth.md](07-auth.md) | 用户登录认证设计（JWT 会话、API Token、RBAC、审计） |
+| [10-mcp-requirements.md](10-mcp-requirements.md) | MCP 服务需求（三方 Agent 经 Model Context Protocol 管理证书） |
+| [11-mcp-implementation.md](11-mcp-implementation.md) | MCP 服务实施计划（M1 stdio 双模式 + 12 工具；M2 HTTP/resources/OAuth） |
 
 ## 关键决策记录
 
@@ -31,3 +33,4 @@
 | D10 | 私钥 AES-GCM 加密存储 | 主密钥文件/环境变量保管，明文仅按需下发至业务机 |
 | D11 | site-docs 文档站（已建设） | VitePress 独立工程（`site-docs/`），Markdown 驱动：快速开始/用户手册/部署指南/运维/API/架构，`make docs` 构建，产物独立发布 |
 | D12 | SSL 签发渠道可扩展 | 统一 `CertificateProvider` 接口 + 注册表，内置 ACME/阿里云/腾讯云，新渠道只实现接口；渠道凭据加密存储，签发后流程与渠道无关 |
+| D13 | MCP 作为新 delivery 层（规划中） | 三方 AI Agent（Claude Code/Cline/Zed 等）经 Model Context Protocol 调用证书生命周期；官方 Go SDK；M1 先 stdio 本地+远程（REST 代理），M2 再上 HTTP（Bearer Token）与 resources/prompts；复用既有 API Token + scope，不建平行认证；私钥下载工具默认关闭。需求与实施计划见 [10-mcp-requirements.md](10-mcp-requirements.md) / [11-mcp-implementation.md](11-mcp-implementation.md) |
