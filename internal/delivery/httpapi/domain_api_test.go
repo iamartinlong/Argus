@@ -1,10 +1,13 @@
 package httpapi
 
 import (
+	"context"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/iamartinlong/Argus/internal/domain"
+	"github.com/iamartinlong/Argus/internal/infrastructure/storage/sqlite"
 )
 
 // TestDomainsCRUD 台账增删改查 + 富化行覆盖状态
@@ -91,6 +94,66 @@ func TestDomainsCRUD(t *testing.T) {
 	decodeData(t, rec, &items)
 	if len(items) != 0 {
 		t.Fatalf("after delete = %d items", len(items))
+	}
+}
+
+// TestDomainsLedgerCoverage HTTP 层覆盖状态：登记域名 + 种子证书（domain_id 关联）
+// → 台账显示 covered 且带当前证书与剩余天数
+func TestDomainsLedgerCoverage(t *testing.T) {
+	s := newTestServer(t)
+	s.seedUser("admin", "Adminpass123456", domain.RoleAdmin)
+	admin := s.login("admin", "Adminpass123456")
+
+	rec := s.do(http.MethodPost, "/api/v1/domains", map[string]any{"name": "www.example.com"}, admin)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create domain: %d %s", rec.Code, rec.Body.String())
+	}
+	var created struct {
+		ID string `json:"id"`
+	}
+	decodeData(t, rec, &created)
+
+	// 种子一张关联该台账项的证书（90 天后到期）
+	certStore := sqlite.NewCertificateStore(s.db)
+	if err := certStore.Create(context.Background(), &domain.Certificate{
+		ID:            "cert-led",
+		Domains:       []string{"www.example.com"},
+		PrimaryDomain: "www.example.com",
+		Provider:      "import",
+		Status:        domain.StatusValid,
+		DomainID:      created.ID,
+		DomainName:    "www.example.com",
+		NotAfter:      time.Now().Add(90 * 24 * time.Hour),
+		CreatedAt:     time.Now(),
+		UpdatedAt:     time.Now(),
+	}); err != nil {
+		t.Fatalf("seed cert: %v", err)
+	}
+
+	rec = s.do(http.MethodGet, "/api/v1/domains", nil, admin)
+	var items []struct {
+		Name         string `json:"name"`
+		Coverage     string `json:"coverage"`
+		CertCount    int    `json:"cert_count"`
+		DaysToExpire *int   `json:"days_to_expire"`
+		CurrentCert  *struct {
+			ID            string `json:"id"`
+			PrimaryDomain string `json:"primary_domain"`
+		} `json:"current_cert"`
+	}
+	decodeData(t, rec, &items)
+	if len(items) != 1 {
+		t.Fatalf("ledger items = %d", len(items))
+	}
+	got := items[0]
+	if got.Coverage != "covered" || got.CertCount != 1 {
+		t.Fatalf("coverage = %q cert_count = %d, want covered/1", got.Coverage, got.CertCount)
+	}
+	if got.CurrentCert == nil || got.CurrentCert.ID != "cert-led" {
+		t.Fatalf("current_cert = %+v", got.CurrentCert)
+	}
+	if got.DaysToExpire == nil || *got.DaysToExpire < 88 || *got.DaysToExpire > 90 {
+		t.Fatalf("days_to_expire = %v, want ~90", got.DaysToExpire)
 	}
 }
 

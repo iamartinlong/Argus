@@ -269,7 +269,12 @@ export function IssueDialog({ open, onOpenChange }: Props) {
                 type="checkbox"
                 className="size-4 accent-primary"
                 checked={csrMode}
-                onChange={(e) => setValue("csr_mode", e.target.checked)}
+                onChange={(e) => {
+                  setValue("csr_mode", e.target.checked)
+                  // CSR 模式域名从 CSR 解析：清空手填的 domains，
+                  // 避免残留值被一并提交导致证书记录与真实 SAN 不符
+                  if (e.target.checked) setValue("domains", "")
+                }}
               />
             </label>
           )}

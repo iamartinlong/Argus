@@ -82,7 +82,8 @@ func (s *CertificateService) SetDomains(store domain.DomainStore) {
 	s.domains = store
 }
 
-// resolveDomainLink 按 primary domain 反查台账，返回 (id, name)；未登记返回 ("", "")
+// resolveDomainLink 按 primary domain（规范化后）反查台账，返回 (id, name)；
+// 未登记返回 ("", "")——覆盖统计随后走名称/通配符匹配。
 func (s *CertificateService) resolveDomainLink(ctx context.Context, primary string) (string, string) {
 	if s.domains == nil || primary == "" {
 		return "", ""

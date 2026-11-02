@@ -289,9 +289,9 @@ func MatchesDomain(certDomains []string, name string) bool
 |---|---|
 | 域名级到期通知 | 需新事件 `domain_expiring` + 防重键从 `cert_id` 改为 `(domain_id, rule_id, days_before)`；模板变量加 `{domain_name}` |
 | 仪表盘域名卡片 | `/api/v1/stats` 增加 `domains_total`/`domains_missing_cert`；Prometheus 同步 |
-| 域名维度证书历史 | 详情页展示该域名全部历史证书（续期链） |
+| 域名维度证书历史 | `GET /api/v1/domains/{id}`（富化详情 + 该域名全部历史证书/续期链）；本期列表已含当前证书与计数，故未实现此端点 |
 | 批量导入域名 | CSV/粘贴批量登记台账 |
-| 导入证书时关联台账 | 导入表单同样接入 `DomainInput`/回查 |
+| 导入证书时关联台账选择器 | 导入表单接入 `DomainInput`（当前为后端按 primary domain 自动反查落副本） |
 
 ## 10. 顺带发现的既有缺陷（评审确认：单独修，不混入本功能）
 

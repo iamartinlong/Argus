@@ -67,6 +67,8 @@ func newTestServer(t *testing.T) *testServer {
 	accountSvc := application.NewProviderAccountService(accountStore, certStore, auditStore, reg, aes, application.RealClock{})
 	certSvc := application.NewCertificateService(
 		certStore, orderStore, accountStore, sqlite.NewContactStore(db), auditStore, reg, aes, application.RealClock{}, 80, application.NewEventBus())
+	domainStore := sqlite.NewDomainStore(db)
+	certSvc.SetDomains(domainStore)
 	ruleStore := sqlite.NewNotificationRuleStore(db)
 	notifyLogStore := sqlite.NewNotificationLogStore(db)
 	taskLogStore := sqlite.NewTaskLogStore(db)
@@ -95,9 +97,8 @@ func newTestServer(t *testing.T) *testServer {
 		CertService:         certSvc,
 		AccountService:      accountSvc,
 		DnsAccountService:   application.NewDnsProviderAccountService(sqlite.NewDnsProviderAccountStore(db), certStore, auditStore, aes, application.RealClock{}),
-		DomainService:       application.NewDomainService(sqlite.NewDomainStore(db), certStore, auditStore, application.RealClock{}),
-		NotificationService: notifySvc,
-		ChannelService:      channelSvc,
+		DomainService:       application.NewDomainService(domainStore, certStore, auditStore, application.RealClock{}),
+		NotificationService: notifySvc,		ChannelService:      channelSvc,
 		DeployRecords:       sqlite.NewDeployRecordStore(db),
 		SendLogs:            sqlite.NewNotificationSendLogStore(db),
 		Agents:              sqlite.NewAgentStore(db),

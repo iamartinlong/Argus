@@ -101,7 +101,7 @@ describe("DomainsPage", () => {
     expect(screen.getByText("api.example.com")).toBeInTheDocument()
   })
 
-  it("登记域名：提交规范化后的字段", async () => {
+  it("登记域名：提交期望状态与标签解析（名称由后端规范化）", async () => {
     const user = userEvent.setup()
     apiMock.get.mockResolvedValue({ data: [] })
     apiMock.post.mockResolvedValue({ data: ledgerItem() })
@@ -109,6 +109,7 @@ describe("DomainsPage", () => {
     await screen.findByText("暂无域名，点击「登记域名」开始")
 
     await user.click(screen.getByRole("button", { name: /登记域名/ }))
+    // 原样提交（含空格），规范化由后端 domain.NormalizeDomain 完成
     await user.type(screen.getByPlaceholderText("example.com 或 *.example.com"), " New.Example.com ")
     const dialog = screen.getByRole("dialog")
     await user.click(within(dialog).getByRole("combobox"))
@@ -123,6 +124,7 @@ describe("DomainsPage", () => {
       name: " New.Example.com ",
       expected_status: "monitor_only",
       tags: ["a", "b"],
+      note: "",
     })
   })
 
@@ -142,15 +144,18 @@ describe("DomainsPage", () => {
     expect(alert).toHaveTextContent("域名已在台账中")
   })
 
-  it("删除时确认框带引用证书数", async () => {
+  it("删除时确认框提示引用该域名的证书数", async () => {
     const user = userEvent.setup()
-    apiMock.get.mockResolvedValue({ data: [ledgerItem()] })
+    apiMock.get.mockResolvedValue({ data: [ledgerItem()] }) // cert_count = 1
     apiMock.delete.mockResolvedValue({ data: { ok: true } })
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true)
     renderPage()
     await screen.findByText("www.example.com")
 
     await user.click(screen.getAllByRole("button", { name: "" })[0]) // 删除图标按钮
     await waitFor(() => expect(apiMock.delete).toHaveBeenCalledWith("/domains/d1"))
+    // 确认文案带引用证书数
+    expect(confirmSpy).toHaveBeenCalledWith(expect.stringContaining("1 张证书引用了该域名"))
   })
 
   it("点击刷新重新请求台账", async () => {

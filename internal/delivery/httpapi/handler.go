@@ -97,7 +97,7 @@ func NewHandler(cfg config.Config, deps HandlerDeps) *Handler {
 	certHandler := newCertificateHandler(deps.CertService, deps.DeployService, deps.Cryptor, deps.AuditService)
 	accountHandler := newAccountHandler(deps.AccountService, deps.ProviderNames)
 	dnsAccountHandler := newDnsAccountHandler(deps.DnsAccountService)
-	domainHandler := newDomainHandler(deps.DomainService)
+	domainHandler := newDomainHandler(deps.DomainService, cfg.Scheduler.RenewDaysBefore)
 	ruleHandler := newNotificationRuleHandler(deps.NotificationService, deps.TaskLogs)
 	channelHandler := newChannelHandler(deps.ChannelService)
 	sendLogHandler := newSendLogHandler(deps.NotificationService)

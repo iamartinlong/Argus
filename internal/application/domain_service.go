@@ -121,19 +121,6 @@ func (s *DomainService) Delete(ctx context.Context, actor *domain.User, id strin
 	return nil
 }
 
-// ResolveByName 按规范化域名反查台账项（CertificateService.Issue 落副本用）。
-// 未登记返回 (nil, nil)——调用方据此留空 domain_id/domain_name。
-func (s *DomainService) ResolveByName(ctx context.Context, name string) (*domain.Domain, error) {
-	d, err := s.domains.GetByName(ctx, domain.NormalizeDomain(name))
-	if err == domain.ErrNotFound {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	return d, nil
-}
-
 // DomainLedgerItem 台账富化行：台账字段 + 实时计算的覆盖状态与当前证书。
 // 直接作为 API 响应序列化（覆盖/证书为计算字段，不落库）。
 type DomainLedgerItem struct {

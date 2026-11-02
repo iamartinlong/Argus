@@ -11,11 +11,12 @@ import (
 )
 
 type DomainHandler struct {
-	domains *application.DomainService
+	domains    *application.DomainService
+	renewDays  int // renew_days_before：台账"即将到期"阈值与调度器续期窗口保持一致
 }
 
-func newDomainHandler(domains *application.DomainService) *DomainHandler {
-	return &DomainHandler{domains: domains}
+func newDomainHandler(domains *application.DomainService, renewDays int) *DomainHandler {
+	return &DomainHandler{domains: domains, renewDays: renewDays}
 }
 
 // domainRequest 创建/更新共用（更新留空字段按默认值处理：期望状态空 = must_have_cert）
@@ -40,7 +41,7 @@ func (h *DomainHandler) Routes() chi.Router {
 
 // list 台账列表（富化行：含实时计算的覆盖状态与当前证书）
 func (h *DomainHandler) list(w http.ResponseWriter, r *http.Request) {
-	items, err := h.domains.Ledger(r.Context(), 0)
+	items, err := h.domains.Ledger(r.Context(), h.renewDays)
 	if err != nil {
 		writeError(w, r, mapError(err), err.Error())
 		return

@@ -7,7 +7,6 @@ import (
 	"encoding/base64"
 	"math/big"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -706,7 +705,7 @@ func (h *CertificateHandler) authorizeKeyAccess(w http.ResponseWriter, r *http.R
 func normalize(d []string) []string {
 	out := make([]string, 0, len(d))
 	for _, x := range d {
-		x = strings.TrimSpace(strings.ToLower(x))
+		x = domain.NormalizeDomain(x)
 		if x != "" {
 			out = append(out, x)
 		}

@@ -36,8 +36,8 @@ function renderControlled(initial = "") {
       </QueryClientProvider>
     )
   }
-  render(<Harness />)
-  return { changes }
+  const { container } = render(<Harness />)
+  return { changes, container }
 }
 
 describe("parseDomainTokens", () => {
@@ -94,8 +94,60 @@ describe("DomainInput", () => {
     expect(await screen.findByRole("button", { name: "移除 api.example.com" })).toBeInTheDocument()
   })
 
-  it("chip 可单个移除", async () => {
+  // 回归：面板内输入过滤词后点击选项——过滤词不得覆盖选中项（曾因面板关闭时
+  // 误把过滤词当域名提交，导致选中项丢失且插入垃圾 chip）
+  it("面板内输入过滤词后选中：只录入选中项，过滤词不落 chip", async () => {
     const user = userEvent.setup()
+    const { changes } = renderControlled()
+
+    await user.click(screen.getByRole("button", { name: "从域名台账选择" }))
+    await user.type(screen.getByRole("combobox"), "api")
+    await user.click(await screen.findByText("api.example.com"))
+
+    await waitFor(() => expect(changes.at(-1)).toBe("api.example.com"))
+    // 过滤词 "api" 没有成为 chip
+    expect(screen.queryByRole("button", { name: "移除 api" })).not.toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "移除 api.example.com" })).toBeInTheDocument()
+  })
+
+  // 回归：Esc 关闭面板时过滤词同样被丢弃
+  it("Esc 关闭面板丢弃过滤词", async () => {
+    const user = userEvent.setup()
+    const { changes } = renderControlled()
+
+    await user.click(screen.getByRole("button", { name: "从域名台账选择" }))
+    await user.type(screen.getByRole("combobox"), "api")
+    await user.keyboard("{Escape}")
+
+    await waitFor(() => expect(screen.queryByText("www.example.com")).not.toBeInTheDocument())
+    expect(changes).toEqual([])
+  })
+
+  // 再次点击按钮可关闭面板（防止 trigger 与内部开关双触发导致面板重开）
+  it("再次点击选择按钮关闭面板", async () => {
+    const user = userEvent.setup()
+    const { container } = renderControlled()
+
+    await user.click(screen.getByRole("button", { name: "从域名台账选择" }))
+    expect(await screen.findByText("www.example.com")).toBeInTheDocument()
+
+    // 面板打开后触发器被 aria-hidden（base-ui 对可输入 combobox 的既定行为），
+    // 经 DOM 查询点击验证"再点一次可关闭"
+    const trigger = container.querySelector('button[aria-label="从域名台账选择"]')
+    expect(trigger).not.toBeNull()
+    await user.click(trigger as Element)
+    await waitFor(() => expect(screen.queryByText("api.example.com")).not.toBeInTheDocument())
+  })
+
+  it("一键清空全部域名", async () => {
+    const user = userEvent.setup()
+    const { changes } = renderControlled("a.com, b.com")
+
+    await user.click(screen.getByRole("button", { name: "清空全部域名" }))
+    expect(changes.at(-1)).toBe("")
+  })
+
+  it("chip 可单个移除", async () => {    const user = userEvent.setup()
     const { changes } = renderControlled("a.com, b.com")
 
     await user.click(screen.getByRole("button", { name: "移除 a.com" }))

@@ -117,6 +117,7 @@ export function DomainsPage() {
   const openCreate = () => {
     setEditing(null)
     reset(DEFAULT_VALUES)
+    save.reset()
     setDialogOpen(true)
   }
   const openEdit = (item: DomainLedgerItem) => {
@@ -127,6 +128,7 @@ export function DomainsPage() {
       tags: item.tags.join(", "),
       note: item.note,
     })
+    save.reset()
     setDialogOpen(true)
   }
 
@@ -333,6 +335,7 @@ export function DomainsPage() {
           if (!o) {
             reset(DEFAULT_VALUES)
             setEditing(null)
+            save.reset()
           }
           setDialogOpen(o)
         }}

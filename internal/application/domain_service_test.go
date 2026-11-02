@@ -173,19 +173,6 @@ func TestDomainServiceDeleteAndAudit(t *testing.T) {
 	}
 }
 
-func TestDomainServiceResolveByName(t *testing.T) {
-	svc, _, _ := newTestDomainService()
-	created, _ := svc.Create(context.Background(), nil, DomainInput{Name: "Resolve.Example.com"})
-	got, err := svc.ResolveByName(context.Background(), "resolve.example.com")
-	if err != nil || got == nil || got.ID != created.ID {
-		t.Fatalf("ResolveByName hit = %v, %v", got, err)
-	}
-	miss, err := svc.ResolveByName(context.Background(), "absent.example.com")
-	if err != nil || miss != nil {
-		t.Fatalf("ResolveByName miss = %v, %v (want nil, nil)", miss, err)
-	}
-}
-
 func TestDomainServiceLedger(t *testing.T) {
 	store := newFakeDomainStore()
 	certs := &fakeCertStoreForLedger{certs: []*domain.Certificate{

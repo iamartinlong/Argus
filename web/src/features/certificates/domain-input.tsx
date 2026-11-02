@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react"
+import { useMemo, useRef, useState } from "react"
 import { Combobox } from "@base-ui/react/combobox"
 import { useQuery } from "@tanstack/react-query"
 import { Check, ChevronDown, X } from "lucide-react"
@@ -49,6 +49,9 @@ export function DomainInput({
   const [inputValue, setInputValue] = useState("")
   const [open, setOpen] = useState(false)
   const [highlighted, setHighlighted] = useState<string | null>(null)
+  // 标记本次开合请求是否来自右侧按钮：base-ui 在输入/聚焦时也会请求打开，
+  // 那些请求要忽略（否则输入长域名时面板弹出会遮住表单）；按钮请求才放行。
+  const openByButton = useRef(false)
 
   const { data: ledger } = useQuery({
     queryKey: ["domains"],
@@ -89,13 +92,15 @@ export function DomainInput({
       onInputValueChange={setInputValue}
       open={open}
       onOpenChange={(next) => {
-        // 只接受"关闭"请求（Esc/点外部/选中）；输入与聚焦不弹面板——
-        // base-ui 对可输入 combobox 会在弹层开启时把外部内容置 aria-hidden，
-        // 在签发弹窗内会盖住表单其余部分。面板只由右侧「选择」按钮开启。
-        if (next) return
-        setOpen(false)
+        // 输入/聚焦导致的"打开"请求一律忽略（否则输入长域名时面板弹出会遮住表单）；
+        // 关闭请求（Esc/点外部/选中后面板自动关/再次点按钮）一律接受。
+        if (next && !openByButton.current) return
+        openByButton.current = false
+        setOpen(next)
         setHighlighted(null)
-        commitInput()
+        // 面板打开期间的输入是"过滤词"而非待录入域名：关闭时直接丢弃，不落 chip。
+        // （否则过滤词会覆盖掉刚选中的台账项）
+        if (!next) setInputValue("")
       }}
       onItemHighlighted={(v) => setHighlighted((v as string | undefined) ?? null)}
     >
@@ -123,6 +128,17 @@ export function DomainInput({
             </button>
           </span>
         ))}
+        {tokens.length > 0 && (
+          <button
+            type="button"
+            aria-label="清空全部域名"
+            title="清空全部"
+            className="inline-flex size-5 shrink-0 items-center justify-center rounded-sm text-muted-foreground hover:text-foreground"
+            onClick={() => emit([])}
+          >
+            <X className="size-3.5" />
+          </button>
+        )}
         <Combobox.Input
           className="min-w-28 flex-1 bg-transparent py-0.5 outline-none placeholder:text-muted-foreground"
           placeholder={tokens.length === 0 ? placeholder : ""}
@@ -149,7 +165,10 @@ export function DomainInput({
           type="button"
           aria-label="从域名台账选择"
           title="从域名台账选择"
-          onClick={() => setOpen((o) => !o)}
+          onClick={() => {
+            openByButton.current = true
+            setOpen((o) => !o)
+          }}
           className="ml-auto inline-flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
         >
           <ChevronDown className="size-4" />
