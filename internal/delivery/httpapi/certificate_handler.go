@@ -70,6 +70,8 @@ type certResponse struct {
 	ContactName     string   `json:"contact_name"`
 	ContactEmail    string   `json:"contact_email"`
 	ContactPhone    string   `json:"contact_phone"`
+	DomainID        string   `json:"domain_id"`
+	DomainName      string   `json:"domain_name"`
 	LastError       string   `json:"last_error"`
 	CreatedAt       string   `json:"created_at"`
 	UpdatedAt       string   `json:"updated_at"`
@@ -96,6 +98,8 @@ func toCertResponse(c *domain.Certificate) certResponse {
 		ContactName:     c.ContactName,
 		ContactEmail:    c.ContactEmail,
 		ContactPhone:    c.ContactPhone,
+		DomainID:        c.DomainID,
+		DomainName:      c.DomainName,
 		LastError:       c.LastError,
 		CreatedAt:       c.CreatedAt.Format(time.RFC3339),
 		UpdatedAt:       c.UpdatedAt.Format(time.RFC3339),

@@ -44,6 +44,8 @@ type Certificate struct {
 	ContactName    string // 申请人快照（签发时固化，不关联 contact_persons）
 	ContactEmail   string
 	ContactPhone   string
+	DomainID       string // 域名台账项 ID（签发时按 primary domain 解析，可空）
+	DomainName     string // 签发时的域名副本（台账改名/删除后保留历史）
 	LastError      string
 	CreatedAt      time.Time
 	UpdatedAt      time.Time

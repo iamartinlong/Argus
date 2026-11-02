@@ -37,6 +37,7 @@ type CertificateService struct {
 	orders     domain.OrderStore
 	accounts   domain.ProviderAccountStore
 	dnsAccounts domain.DnsProviderAccountStore
+	domains    domain.DomainStore // 域名台账（可选）：签发时按 primary domain 落引用与副本
 	contacts   domain.ContactStore
 	audit      domain.AuditStore
 	providers  ProviderEngine
@@ -75,6 +76,24 @@ func (s *CertificateService) SetDnsAccounts(store domain.DnsProviderAccountStore
 	s.dnsAccounts = store
 }
 
+// SetDomains 注入域名台账存储（可选）：签发时按 primary domain 反查，
+// 命中则记录 domain_id 引用与 domain_name 副本（台账改名/删除不影响历史证书）
+func (s *CertificateService) SetDomains(store domain.DomainStore) {
+	s.domains = store
+}
+
+// resolveDomainLink 按 primary domain 反查台账，返回 (id, name)；未登记返回 ("", "")
+func (s *CertificateService) resolveDomainLink(ctx context.Context, primary string) (string, string) {
+	if s.domains == nil || primary == "" {
+		return "", ""
+	}
+	d, err := s.domains.GetByName(ctx, domain.NormalizeDomain(primary))
+	if err != nil || d == nil {
+		return "", ""
+	}
+	return d.ID, d.Name
+}
+
 // UpdateStatus 仅更新证书状态列（调度扫描持久化过渡态用），
 // 避免整行 Update 与并发续期写入互相覆盖
 func (s *CertificateService) UpdateStatus(ctx context.Context, certID string, status domain.CertificateStatus) error {
@@ -103,8 +122,7 @@ func (s *CertificateService) Issue(ctx context.Context, input IssueInput) (*doma
 	}
 	if input.CSRPEM == "" {
 		for _, d := range input.Domains {
-			clean := strings.ToLower(strings.TrimSpace(d))
-			if !validImportDomain(clean) {
+			if !domain.ValidDomain(domain.NormalizeDomain(d)) {
 				return nil, fmt.Errorf("%w: 非法域名 %q", domain.ErrInvalidArgument, d)
 			}
 		}
@@ -141,6 +159,8 @@ func (s *CertificateService) Issue(ctx context.Context, input IssueInput) (*doma
 	if len(input.Domains) > 0 {
 		cert.PrimaryDomain = input.Domains[0]
 	}
+	// 域名台账关联：按 primary domain 反查，命中则记录引用与副本（副本 = 台账当前名称）
+	cert.DomainID, cert.DomainName = s.resolveDomainLink(ctx, cert.PrimaryDomain)
 	// DNS-01 凭据：优先使用 DNS 账户，回退旧 DNSConfig
 	dnsConfig := input.DNSConfig
 	if input.DNSProviderAccountID != "" && s.dnsAccounts != nil {
@@ -455,8 +475,8 @@ func (s *CertificateService) Import(
 	// 同时与证书实际 SAN 一致性由上层 UI 保证；此处仅拦截非法字符
 	normalized := make([]string, 0, len(domains))
 	for _, d := range domains {
-		clean := strings.ToLower(strings.TrimSpace(d))
-		if !validImportDomain(clean) {
+		clean := domain.NormalizeDomain(d)
+		if !domain.ValidDomain(clean) {
 			return nil, fmt.Errorf("%w: 非法域名 %q（仅允许字母/数字/点/连字符，≤253 字符）", domain.ErrInvalidArgument, d)
 		}
 		normalized = append(normalized, clean)
@@ -552,24 +572,6 @@ func (s *CertificateService) ImportPFX(
 	}
 
 	return s.Import(ctx, domains, certPEM, keyPEM, verification, notifyEvents)
-}
-
-// validImportDomain 域名格式校验：字母数字/点/连字符，允许通配符前缀 *.
-func validImportDomain(d string) bool {
-	if d == "" || len(d) > 253 {
-		return false
-	}
-	rest := d
-	if strings.HasPrefix(rest, "*.") {
-		rest = rest[2:]
-	}
-	for _, r := range rest {
-		if r == '.' || r == '-' || (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
-			continue
-		}
-		return false
-	}
-	return true
 }
 
 func (s *CertificateService) List(ctx context.Context) ([]*domain.Certificate, error) {

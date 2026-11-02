@@ -94,6 +94,8 @@ func newTestServer(t *testing.T) *testServer {
 		AuditStore:          auditStore,
 		CertService:         certSvc,
 		AccountService:      accountSvc,
+		DnsAccountService:   application.NewDnsProviderAccountService(sqlite.NewDnsProviderAccountStore(db), certStore, auditStore, aes, application.RealClock{}),
+		DomainService:       application.NewDomainService(sqlite.NewDomainStore(db), certStore, auditStore, application.RealClock{}),
 		NotificationService: notifySvc,
 		ChannelService:      channelSvc,
 		DeployRecords:       sqlite.NewDeployRecordStore(db),

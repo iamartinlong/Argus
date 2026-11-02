@@ -48,6 +48,7 @@ type HandlerDeps struct {
 	CertService         *application.CertificateService
 	AccountService      *application.ProviderAccountService
 	DnsAccountService   *application.DnsProviderAccountService
+	DomainService       *application.DomainService
 	NotificationService *application.NotificationService
 	ChannelService      *application.ChannelService
 	DeployService       *application.DeployService
@@ -96,6 +97,7 @@ func NewHandler(cfg config.Config, deps HandlerDeps) *Handler {
 	certHandler := newCertificateHandler(deps.CertService, deps.DeployService, deps.Cryptor, deps.AuditService)
 	accountHandler := newAccountHandler(deps.AccountService, deps.ProviderNames)
 	dnsAccountHandler := newDnsAccountHandler(deps.DnsAccountService)
+	domainHandler := newDomainHandler(deps.DomainService)
 	ruleHandler := newNotificationRuleHandler(deps.NotificationService, deps.TaskLogs)
 	channelHandler := newChannelHandler(deps.ChannelService)
 	sendLogHandler := newSendLogHandler(deps.NotificationService)
@@ -170,6 +172,7 @@ func NewHandler(cfg config.Config, deps HandlerDeps) *Handler {
 			r.Mount("/api-tokens", tokenHandler.Routes())
 			r.Mount("/settings/contacts", contactHandler.Routes())
 			r.Mount("/agents", agentHandler.AdminRoutes())
+			r.Mount("/domains", domainHandler.Routes())
 		})
 
 		// 任务日志导出与发送历史导出含运维细节，仅 admin/operator（发送历史列表在 Routes 内同样限制）

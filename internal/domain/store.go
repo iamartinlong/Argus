@@ -64,6 +64,16 @@ type RenewalTrendPoint struct {
 	Total   int
 }
 
+// DomainStore 域名台账（主数据）存储
+type DomainStore interface {
+	Create(ctx context.Context, d *Domain) error
+	GetByID(ctx context.Context, id string) (*Domain, error)
+	GetByName(ctx context.Context, name string) (*Domain, error)
+	List(ctx context.Context) ([]*Domain, error)
+	Update(ctx context.Context, d *Domain) error
+	Delete(ctx context.Context, id string) error
+}
+
 type ProviderAccountStore interface {
 	Create(ctx context.Context, account *ProviderAccount) error
 	GetByID(ctx context.Context, id string) (*ProviderAccount, error)

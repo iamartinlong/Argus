@@ -88,6 +88,10 @@ const (
 	AuditContactCreate AuditAction = "contact.create"
 	AuditContactUpdate AuditAction = "contact.update"
 	AuditContactDelete AuditAction = "contact.delete"
+
+	AuditDomainCreate AuditAction = "domain.create"
+	AuditDomainUpdate AuditAction = "domain.update"
+	AuditDomainDelete AuditAction = "domain.delete"
 )
 
 type AuditLog struct {

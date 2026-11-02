@@ -43,6 +43,7 @@ type bootstrap struct {
 	certSvc    *application.CertificateService
 	accountSvc *application.ProviderAccountService
 	dnsAccountSvc *application.DnsProviderAccountService
+	domainSvc    *application.DomainService
 	deploySvc  *application.DeployService
 	notifySvc  *application.NotificationService
 	channelSvc *application.ChannelService
@@ -124,12 +125,15 @@ func newBootstrap(configPath string, requireJWT bool) (*bootstrap, error) {
 	accountSvc := application.NewProviderAccountService(accountStore, certStore, auditStore, registry, aes, application.RealClock{})
 	dnsAccountStore := sqlite.NewDnsProviderAccountStore(db)
 	dnsAccountSvc := application.NewDnsProviderAccountService(dnsAccountStore, certStore, auditStore, aes, application.RealClock{})
+	domainStore := sqlite.NewDomainStore(db)
+	domainSvc := application.NewDomainService(domainStore, certStore, auditStore, application.RealClock{})
 	contactStore := sqlite.NewContactStore(db)
 	contactSvc := application.NewContactService(contactStore, auditStore, application.RealClock{})
 	eventBus := application.NewEventBus()
 	certSvc := application.NewCertificateService(
 		certStore, orderStore, accountStore, contactStore, auditStore, registry, aes, application.RealClock{}, cfg.ACME.HTTP01Port, eventBus)
 	certSvc.SetDnsAccounts(dnsAccountStore)
+	certSvc.SetDomains(domainStore)
 
 	channelStore := sqlite.NewNotificationChannelStore(db)
 	channelSvc := application.NewChannelService(channelStore, ruleStore, auditStore,
@@ -211,7 +215,7 @@ func newBootstrap(configPath string, requireJWT bool) (*bootstrap, error) {
 	return &bootstrap{
 		db: db, cfg: cfg, certSvc: certSvc, accountSvc: accountSvc, dnsAccountSvc: dnsAccountSvc, deploySvc: deploySvc,
 		notifySvc: notifySvc, channelSvc: channelSvc, tokenSvc: tokenSvc, agentSvc: agentSvc,
-		contactSvc: contactSvc,
+		contactSvc: contactSvc, domainSvc: domainSvc,
 		runner: runner, schedSvc: schedSvc, registry: registry,
 		deployRecs: deployRecordStore, sendLogs: sendLogStore, agents: agentStore,
 		stop: stop,
@@ -424,6 +428,7 @@ func (b *bootstrap) runServer() error {
 		CertService:         b.certSvc,
 		AccountService:      b.accountSvc,
 		DnsAccountService:   b.dnsAccountSvc,
+		DomainService:       b.domainSvc,
 		NotificationService: b.notifySvc,
 		ChannelService:      b.channelSvc,
 		DeployService:       b.deploySvc,

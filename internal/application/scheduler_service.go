@@ -105,7 +105,12 @@ func (s *SchedulerService) RunScan(ctx context.Context) (string, error) {
 		if (cert.Status == domain.StatusValid || cert.Status == domain.StatusExpiring) &&
 			!cert.NotAfter.IsZero() && now.Add(time.Duration(s.renewDays)*24*time.Hour).After(cert.NotAfter) {
 			if cert.Provider == "import" {
+				// 导入证书无签发渠道，跳过续期；但**仍要走到期通知分支**——
+				// 否则 renew_days_before ≥ expiryDays 最大档位时，导入证书永远收不到提醒
 				summary.RenewSkipped = append(summary.RenewSkipped, domain.SkippedInfo{Domain: cert.PrimaryDomain, Reason: "import"})
+				if sent := s.notifyExpiryIfDueWithResult(ctx, cert, now); sent {
+					summary.NotifySent++
+				}
 				continue
 			}
 			triggered, success, failReason := s.renewOneWithResult(ctx, cert)

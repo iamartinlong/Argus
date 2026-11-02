@@ -101,6 +101,12 @@ func requiredScope(r *http.Request) (string, bool) {
 			return writeScope("certificates"), true
 		}
 		return readScope("certificates"), true
+	case strings.HasPrefix(path, "/api/v1/domains"):
+		// 域名台账与证书同源（证书域资源）：沿用 certificates 读写 scope
+		if write {
+			return writeScope("certificates"), true
+		}
+		return readScope("certificates"), true
 	case strings.HasPrefix(path, "/api/v1/deploy-targets"):
 		if write {
 			return writeScope("deploy"), true

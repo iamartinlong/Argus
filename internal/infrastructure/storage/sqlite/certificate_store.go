@@ -19,7 +19,7 @@ func NewCertificateStore(db dbexec.SQLDB) *CertificateStore { return &Certificat
 
 const certColumns = `id, domains, primary_domain, provider, status, issuer_ca, not_before, not_after,
     certificate_pem, private_key_enc, account_id, verification, dns_config_enc, dns_provider_account_id, deploy_target_ids,
-    notify_events, contact_name, contact_email, contact_phone, last_error, created_at, updated_at`
+    notify_events, contact_name, contact_email, contact_phone, domain_id, domain_name, last_error, created_at, updated_at`
 
 func scanCertificate(row interface{ Scan(...any) error }) (*domain.Certificate, error) {
 	var c domain.Certificate
@@ -28,7 +28,7 @@ func scanCertificate(row interface{ Scan(...any) error }) (*domain.Certificate, 
 	if err := row.Scan(&c.ID, &domains, &c.PrimaryDomain, &c.Provider, &c.Status, &c.IssuerCA,
 		&nb, &na, &c.CertificatePEM, &c.PrivateKeyEnc, &c.AccountID, &c.Verification,
 		&c.DNSConfigEnc, &c.DNSProviderAccountID, &targetIDs, &notifyEvents, &c.ContactName, &c.ContactEmail, &c.ContactPhone,
-		&c.LastError, &c.CreatedAt, &c.UpdatedAt); err != nil {
+		&c.DomainID, &c.DomainName, &c.LastError, &c.CreatedAt, &c.UpdatedAt); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, domain.ErrNotFound
 		}
@@ -63,12 +63,13 @@ func (s *CertificateStore) Create(ctx context.Context, c *domain.Certificate) er
 	_, err := s.db.ExecContext(ctx, `INSERT INTO certificates
         (id, domains, primary_domain, provider, status, issuer_ca, not_before, not_after,
          certificate_pem, private_key_enc, account_id, verification, dns_config_enc, dns_provider_account_id, deploy_target_ids,
-         notify_events, contact_name, contact_email, contact_phone, last_error, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         notify_events, contact_name, contact_email, contact_phone, domain_id, domain_name, last_error, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		c.ID, encodeDomains(c.Domains), c.PrimaryDomain, c.Provider, c.Status, c.IssuerCA,
 		nullTime(c.NotBefore), nullTime(c.NotAfter), c.CertificatePEM, c.PrivateKeyEnc,
 		c.AccountID, c.Verification, c.DNSConfigEnc, c.DNSProviderAccountID, encodeDomains(c.DeployTargetIDs),
-		encodeDomains(c.NotifyEvents), c.ContactName, c.ContactEmail, c.ContactPhone, c.LastError, c.CreatedAt, c.UpdatedAt)
+		encodeDomains(c.NotifyEvents), c.ContactName, c.ContactEmail, c.ContactPhone, c.DomainID, c.DomainName,
+		c.LastError, c.CreatedAt, c.UpdatedAt)
 	return err
 }
 
@@ -99,12 +100,14 @@ func (s *CertificateStore) Update(ctx context.Context, c *domain.Certificate) er
         domains = ?, primary_domain = ?, provider = ?, status = ?, issuer_ca = ?,
         not_before = ?, not_after = ?, certificate_pem = ?, private_key_enc = ?,
         account_id = ?, verification = ?, dns_config_enc = ?, dns_provider_account_id = ?, deploy_target_ids = ?,
-        notify_events = ?, contact_name = ?, contact_email = ?, contact_phone = ?, last_error = ?, updated_at = ?
+        notify_events = ?, contact_name = ?, contact_email = ?, contact_phone = ?, domain_id = ?, domain_name = ?,
+        last_error = ?, updated_at = ?
         WHERE id = ?`,
 		encodeDomains(c.Domains), c.PrimaryDomain, c.Provider, c.Status, c.IssuerCA,
 		nullTime(c.NotBefore), nullTime(c.NotAfter), c.CertificatePEM, c.PrivateKeyEnc,
 		c.AccountID, c.Verification, c.DNSConfigEnc, c.DNSProviderAccountID, encodeDomains(c.DeployTargetIDs),
-		encodeDomains(c.NotifyEvents), c.ContactName, c.ContactEmail, c.ContactPhone, c.LastError, time.Now().UTC(), c.ID)
+		encodeDomains(c.NotifyEvents), c.ContactName, c.ContactEmail, c.ContactPhone, c.DomainID, c.DomainName,
+		c.LastError, time.Now().UTC(), c.ID)
 	if err != nil {
 		return err
 	}

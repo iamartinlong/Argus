@@ -408,6 +408,24 @@ ALTER TABLE agent_tasks ADD COLUMN certificate_domain TEXT NOT NULL DEFAULT '';
 ALTER TABLE task_logs ADD COLUMN summary TEXT NOT NULL DEFAULT '';
 `,
 	},
+	{
+		id: 19,
+		script: `
+CREATE TABLE IF NOT EXISTS domains (
+    id              TEXT PRIMARY KEY,
+    name            TEXT NOT NULL,
+    expected_status TEXT NOT NULL DEFAULT 'must_have_cert',
+    source          TEXT NOT NULL DEFAULT 'manual',
+    note            TEXT NOT NULL DEFAULT '',
+    tags            TEXT NOT NULL DEFAULT '[]',
+    created_at      DATETIME NOT NULL,
+    updated_at      DATETIME NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_domains_name ON domains(name);
+ALTER TABLE certificates ADD COLUMN domain_id TEXT NOT NULL DEFAULT '';
+ALTER TABLE certificates ADD COLUMN domain_name TEXT NOT NULL DEFAULT '';
+`,
+	},
 }
 
 func (s *DB) migrate() error {

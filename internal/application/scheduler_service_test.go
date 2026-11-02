@@ -3,6 +3,7 @@ package application
 import (
 	"context"
 	"errors"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -238,6 +239,35 @@ func TestScanRemindsLateEntryWithTighterWindow(t *testing.T) {
 	}
 	if got := notifier.sent[0].Details["days_left"]; got != "14" {
 		t.Fatalf("expected reminder for 14-day tier, got days_left=%q", got)
+	}
+}
+
+// TestScanNotifiesImportedCertExpiry 导入证书（无签发渠道）落入续期窗口时：
+// 跳过续期，但**仍发到期提醒**。
+// 回归修复：此前 continue 连带跳过通知分支，而 renew_days_before（默认 30）
+// ≥ expiryDays 最大档位（30），导致导入证书任何档位都收不到提醒。
+func TestScanNotifiesImportedCertExpiry(t *testing.T) {
+	imported := &domain.Certificate{
+		ID: "cert-import", PrimaryDomain: "imported.example.com",
+		Provider: "import", Status: domain.StatusValid, NotAfter: time.Now().Add(7 * 24 * time.Hour),
+	}
+	sched, ops, notifier, rules := newTestScheduler([]*domain.Certificate{imported})
+	seedRule(t, rules, domain.EventCertExpiring, []int{7})
+
+	summary, err := sched.RunScan(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ops.renewed) != 0 {
+		t.Fatalf("import cert should not be renewed, got %v", ops.renewed)
+	}
+	notifier.mu.Lock()
+	defer notifier.mu.Unlock()
+	if len(notifier.sent) != 1 {
+		t.Fatalf("expected 1 expiry reminder for imported cert, got %d: %+v", len(notifier.sent), notifier.sent)
+	}
+	if !strings.Contains(summary, "imported.example.com") {
+		t.Fatalf("summary should record import skip, got: %s", summary)
 	}
 }
 

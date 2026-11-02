@@ -180,6 +180,64 @@ paths:
                   version: { type: string, example: "1.1.1" }
         "401":
           description: 未登录（不向匿名暴露版本信息）
+  /domains:
+    get:
+      tags: [证书]
+      summary: 域名台账列表（富化行，含实时覆盖状态与当前证书）
+      responses:
+        "200":
+          description: 台账列表
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/DomainLedger" }
+    post:
+      tags: [证书]
+      summary: 登记域名（名称规范化后查重，重复返回 409）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string, example: "www.example.com" }
+                expected_status: { type: string, enum: [must_have_cert, monitor_only], default: must_have_cert }
+                note: { type: string }
+                tags: { type: array, items: { type: string } }
+      responses:
+        "201": { $ref: "#/components/schemas/Domain" }
+        "409": { description: 域名已在台账中 }
+  /domains/{id}:
+    put:
+      tags: [证书]
+      summary: 更新域名台账项
+      parameters:
+        - { $ref: "#/components/parameters/ID" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string }
+                expected_status: { type: string, enum: [must_have_cert, monitor_only] }
+                note: { type: string }
+                tags: { type: array, items: { type: string } }
+      responses:
+        "200": { $ref: "#/components/schemas/Domain" }
+        "409": { description: 域名已在台账中 }
+    delete:
+      tags: [证书]
+      summary: 删除域名台账项（不影响已签发证书，证书保留域名副本）
+      parameters:
+        - { $ref: "#/components/parameters/ID" }
+      responses:
+        "200": { $ref: "#/components/responses/OK" }
   /auth/login:
     post:
       tags: [认证]
@@ -1438,6 +1496,44 @@ components:
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
         config: { type: object, description: "仅详情返回，敏感键置空" }
+    Domain:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string, description: "规范化后的域名（唯一）" }
+        expected_status: { type: string, enum: [must_have_cert, monitor_only] }
+        source: { type: string, enum: [manual] }
+        note: { type: string }
+        tags: { type: array, items: { type: string } }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    DomainLedger:
+      type: object
+      description: 台账富化行：Domain 字段 + 实时计算的覆盖状态与当前证书
+      properties:
+        id: { type: string }
+        name: { type: string }
+        expected_status: { type: string, enum: [must_have_cert, monitor_only] }
+        source: { type: string }
+        note: { type: string }
+        tags: { type: array, items: { type: string } }
+        coverage:
+          type: string
+          enum: [missing, expiring, expired, covered, monitor]
+          description: "missing=缺证书；expiring=临近到期；expired=已过期；covered=已覆盖；monitor=仅关注"
+        days_to_expire: { type: integer, nullable: true, description: "当前证书剩余天数；无证书为 null" }
+        cert_count: { type: integer, description: "关联证书总数（含历史）" }
+        current_cert:
+          type: object
+          nullable: true
+          properties:
+            id: { type: string }
+            primary_domain: { type: string }
+            status: { type: string }
+            provider: { type: string }
+            not_after: { type: string, format: date-time }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
     DeployTarget:
       type: object
       properties:
