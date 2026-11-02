@@ -30,6 +30,7 @@ type Handler struct {
 	deployRecs domain.DeployRecordStore
 	sendLogs  domain.NotificationSendLogStore
 	accessTTL time.Duration
+	appVersion string
 }
 
 type jwtVerifier interface {
@@ -88,6 +89,7 @@ func NewHandler(cfg config.Config, deps HandlerDeps) *Handler {
 		deployRecs: deps.DeployRecords,
 		sendLogs:  deps.SendLogs,
 		accessTTL: deps.AccessTTL,
+		appVersion: deps.AppVersion,
 	}
 	authHandler := newAuthHandler(deps.Auth, deps.AccessTTL, deps.RefreshTTL, cfg.Auth.CookieSecure)
 	userHandler := newUserHandler(deps.UserService)
@@ -155,6 +157,7 @@ func NewHandler(cfg config.Config, deps HandlerDeps) *Handler {
 			r.Use(middleware.Timeout(60 * time.Second))
 			r.Use(h.authenticate)
 			r.Get("/stats", h.stats)
+			r.Get("/system/version", h.version)
 			r.Put("/users/me/password", userHandler.changePassword)
 			r.Get("/audit-logs", h.listAudit)
 			r.Get("/audit-logs/export", h.exportAudit)
@@ -200,6 +203,13 @@ func WithWebUI(api http.Handler) http.Handler {
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.router.ServeHTTP(w, r)
+}
+
+// version 返回服务端版本号（前端品牌区展示，保证与运行中的二进制一致，
+// 避免前端 package.json 版本漂移）。需登录；安装向导的 /setup/status
+// 在初始化前即公开版本号（属低敏感信息），此处仍按需认证。
+func (h *Handler) version(w http.ResponseWriter, r *http.Request) {
+	writeOK(w, r, map[string]string{"version": h.appVersion})
 }
 
 func (h *Handler) stats(w http.ResponseWriter, r *http.Request) {

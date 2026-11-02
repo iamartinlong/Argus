@@ -66,6 +66,7 @@ func TestOpenAPISpecEndpoint(t *testing.T) {
 		"title: Argus API",
 		"/certificates:",
 		"/auth/login:",
+		"/system/version:",
 		"bearerAuth",
 		"X-API-Token",
 	} {

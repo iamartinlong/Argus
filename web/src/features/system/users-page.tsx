@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
@@ -34,6 +34,9 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { api, getErrorMessage } from "@/lib/api"
+import { RefreshButton } from "@/components/refresh-button"
+import { TableRefreshOverlay } from "@/components/table-refresh-overlay"
+import { useTableRefresh } from "@/hooks/use-table-refresh"
 import { useAuthStore } from "@/stores/auth-store"
 
 interface User {
@@ -68,19 +71,21 @@ export function UsersPage() {
   const currentUser = useAuthStore((s) => s.user)
   const [createOpen, setCreateOpen] = useState(false)
 
-  const { data: users } = useQuery({
+  const { data: users, isFetching: usersFetching, refetch: refetchUsers } = useQuery({
     queryKey: ["users"],
     queryFn: async () => {
       const res = await api.get<User[]>("/users")
       return res.data
     },
   })
+  const { refreshing, refresh } = useTableRefresh(refetchUsers)
 
   const {
     register,
     handleSubmit,
     setValue,
     watch,
+    reset,
     formState: { errors },
   } = useForm<UserForm>({
     resolver: zodResolver(userSchema),
@@ -94,10 +99,16 @@ export function UsersPage() {
     onSuccess: () => {
       toast.success("用户创建成功")
       queryClient.invalidateQueries({ queryKey: ["users"] })
+      reset({ role: "operator" })
       setCreateOpen(false)
     },
     onError: (err) => toast.error(getErrorMessage(err)),
   })
+
+  // 对话框常驻挂载：打开时重置，避免上次的用户名/密码回显
+  useEffect(() => {
+    if (createOpen) reset({ role: "operator" })
+  }, [createOpen, reset])
 
   const update = useMutation({
     mutationFn: async ({ id, role, status }: { id: string; role?: string; status?: string }) => {
@@ -125,110 +136,124 @@ export function UsersPage() {
     <Card className="flex-1">
       <CardHeader className="flex flex-row items-center justify-between space-y-0">
         <CardTitle>用户管理</CardTitle>
-        <Button onClick={() => setCreateOpen(true)}>
-          <Plus className="mr-2 size-4" />
-          新建用户
-        </Button>
+        <div className="flex gap-2">
+          <RefreshButton fetching={usersFetching} onClick={refresh} />
+          <Button onClick={() => setCreateOpen(true)}>
+            <Plus className="mr-2 size-4" />
+            新建用户
+          </Button>
+        </div>
       </CardHeader>
       <CardContent>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>用户名</TableHead>
-              <TableHead>角色</TableHead>
-              <TableHead>状态</TableHead>
-              <TableHead>创建时间</TableHead>
-              <TableHead className="text-right">操作</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {!users || users.length === 0 ? (
+        <div className="relative">
+          <TableRefreshOverlay active={refreshing} />
+          <Table>
+            <TableHeader>
               <TableRow>
-                <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
-                  <UserRound className="mx-auto mb-2 size-8 opacity-50" />
-                  暂无用户
-                </TableCell>
+                <TableHead>用户名</TableHead>
+                <TableHead>角色</TableHead>
+                <TableHead>状态</TableHead>
+                <TableHead>创建时间</TableHead>
+                <TableHead className="text-right">操作</TableHead>
               </TableRow>
-            ) : (
-              users.map((u) => (
-                <TableRow key={u.id}>
-                  <TableCell className="font-medium">
-                    {u.username}
-                    {u.id === currentUser?.id && (
-                      <Badge variant="outline" className="ml-2">当前</Badge>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <Select
-                      value={u.role}
-                      onValueChange={(v) => update.mutate({ id: u.id, role: v ?? undefined })}
-                      disabled={u.id === currentUser?.id}
-                    >
-                      <SelectTrigger className="w-32">
-                        <SelectValue>{roleNames[u.role] ?? u.role}</SelectValue>
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="admin">管理员</SelectItem>
-                        <SelectItem value="operator">操作员</SelectItem>
-                        <SelectItem value="readonly">只读</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </TableCell>
-                  <TableCell>
-                    {u.status === "active" ? (
-                      <Badge variant="outline" className="bg-green-500/15 text-green-600 dark:text-green-400">启用</Badge>
-                    ) : (
-                      <Badge variant="outline" className="bg-zinc-500/15 text-zinc-600 dark:text-zinc-400">禁用</Badge>
-                    )}
-                  </TableCell>
-                  <TableCell>{new Date(u.created_at).toLocaleDateString()}</TableCell>
-                  <TableCell className="text-right space-x-1">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={u.id === currentUser?.id}
-                      onClick={() =>
-                        update.mutate({
-                          id: u.id,
-                          status: u.status === "active" ? "disabled" : "active",
-                        })
-                      }
-                    >
-                      {u.status === "active" ? (
-                        <>
-                          <Ban className="mr-1 size-4" />禁用
-                        </>
-                      ) : (
-                        <>
-                          <CircleCheck className="mr-1 size-4" />启用
-                        </>
-                      )}
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-destructive"
-                      disabled={u.id === currentUser?.id}
-                      onClick={() => {
-                        if (confirm(`确认删除用户 ${u.username}？删除后其会话与 Token 将失效`)) {
-                          remove.mutate(u.id)
-                        }
-                      }}
-                    >
-                      <Trash2 className="size-4" />
-                    </Button>
+            </TableHeader>
+            <TableBody>
+              {!users || users.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                    <UserRound className="mx-auto mb-2 size-8 opacity-50" />
+                    暂无用户
                   </TableCell>
                 </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
+              ) : (
+                users.map((u) => (
+                  <TableRow key={u.id}>
+                    <TableCell className="font-medium">
+                      {u.username}
+                      {u.id === currentUser?.id && (
+                        <Badge variant="outline" className="ml-2">当前</Badge>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <Select
+                        value={u.role}
+                        onValueChange={(v) => update.mutate({ id: u.id, role: v ?? undefined })}
+                        disabled={u.id === currentUser?.id}
+                      >
+                        <SelectTrigger className="w-32">
+                          <SelectValue>{roleNames[u.role] ?? u.role}</SelectValue>
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="admin">管理员</SelectItem>
+                          <SelectItem value="operator">操作员</SelectItem>
+                          <SelectItem value="readonly">只读</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </TableCell>
+                    <TableCell>
+                      {u.status === "active" ? (
+                        <Badge variant="outline" className="bg-green-500/15 text-green-600 dark:text-green-400">启用</Badge>
+                      ) : (
+                        <Badge variant="outline" className="bg-zinc-500/15 text-zinc-600 dark:text-zinc-400">禁用</Badge>
+                      )}
+                    </TableCell>
+                    <TableCell>{new Date(u.created_at).toLocaleDateString()}</TableCell>
+                    <TableCell className="text-right space-x-1">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={u.id === currentUser?.id}
+                        onClick={() =>
+                          update.mutate({
+                            id: u.id,
+                            status: u.status === "active" ? "disabled" : "active",
+                          })
+                        }
+                      >
+                        {u.status === "active" ? (
+                          <>
+                            <Ban className="mr-1 size-4" />禁用
+                          </>
+                        ) : (
+                          <>
+                            <CircleCheck className="mr-1 size-4" />启用
+                          </>
+                        )}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-destructive"
+                        disabled={u.id === currentUser?.id}
+                        onClick={() => {
+                          if (confirm(`确认删除用户 ${u.username}？删除后其会话与 Token 将失效`)) {
+                            remove.mutate(u.id)
+                          }
+                        }}
+                      >
+                        <Trash2 className="size-4" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </div>
         <p className="mt-4 text-xs text-muted-foreground">
           禁用用户立即吊销其全部会话；密码需 ≥12 位并包含大小写字母与数字。
         </p>
       </CardContent>
 
-      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+      <Dialog
+        open={createOpen}
+        onOpenChange={(o) => {
+          // 关闭即清空（覆盖取消按钮/Esc/遮罩/X 所有路径），
+          // 避免下次打开时闪现上次的用户名/密码
+          if (!o) reset({ role: "operator" })
+          setCreateOpen(o)
+        }}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>新建用户</DialogTitle>

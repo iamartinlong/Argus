@@ -1,9 +1,12 @@
+import { useEffect } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { toast } from "sonner"
+import { CircleAlertIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import {
   Dialog,
   DialogContent,
@@ -59,6 +62,17 @@ const accountsLookup: Record<string, string> = {}
 
 type IssueForm = z.infer<typeof issueSchema>
 
+// 表单默认值：同时用于 useForm defaultValues 与打开时的重置，
+// 确保上次填写内容（含 DNS 密钥等敏感字段）不会跨开合残留
+const DEFAULT_VALUES: IssueForm = {
+  account_id: "",
+  verification: "http01",
+  csr_mode: false,
+  deploy_target_ids: [],
+  notify_events: NOTIFICATION_EVENTS.map((e) => e.value),
+  dns_provider: "alidns",
+}
+
 interface Props {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -103,16 +117,11 @@ export function IssueDialog({ open, onOpenChange }: Props) {
     handleSubmit,
     watch,
     setValue,
+    reset,
     formState: { errors },
   } = useForm<IssueForm>({
     resolver: zodResolver(issueSchema),
-    defaultValues: {
-      verification: "http01",
-      csr_mode: false,
-      deploy_target_ids: [],
-      notify_events: NOTIFICATION_EVENTS.map((e) => e.value),
-      dns_provider: "alidns",
-    },
+    defaultValues: DEFAULT_VALUES,
   })
 
   // 填充 provider 查询表（供 schema 校验判断是否云厂商账户）
@@ -167,24 +176,57 @@ export function IssueDialog({ open, onOpenChange }: Props) {
     onSuccess: () => {
       toast.success("签发成功")
       queryClient.invalidateQueries({ queryKey: ["certificates"] })
+      reset(DEFAULT_VALUES)
       onOpenChange(false)
     },
-    onError: (err) => {
-      toast.error(getErrorMessage(err))
+    onError: () => {
+      // 内联 Alert 常驻显示详细错误（避免 toast 自动消失被漏看）；
+      // toast 仅作一声简短提醒
+      toast.error("签发失败")
     },
   })
+
+  // 对话框常驻挂载：打开时重置表单与上次错误，
+  // 避免回显上次的域名/CSR/DNS 密钥（import-dialog 同款做法）
+  // 注意：必须用 mutation 的 reset（bindMethods 绑定的稳定函数）；
+  // 依赖整个 issue 对象会把 effect 变成渲染循环（useMutation 每次渲染返回新对象）
+  const { reset: resetIssue } = issue
+  useEffect(() => {
+    if (open) {
+      reset(DEFAULT_VALUES)
+      resetIssue()
+    }
+  }, [open, reset, resetIssue])
 
   const selectedAccount = accounts?.find((a) => a.id === watch("account_id"))
   const isCloudProvider = selectedAccount && selectedAccount.provider !== "acme"
   const csrMode = watch("csr_mode") ?? false
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog
+      open={open}
+      onOpenChange={(o) => {
+        // 关闭即清空（覆盖取消按钮/Esc/遮罩/X 所有路径），
+        // 避免下次打开时闪现上次的域名/CSR/DNS 密钥
+        if (!o) {
+          reset(DEFAULT_VALUES)
+          resetIssue()
+        }
+        onOpenChange(o)
+      }}
+    >
       <DialogContent>
         <DialogHeader>
           <DialogTitle>签发证书</DialogTitle>
           <DialogDescription>通过所选渠道为域名签发 SSL 证书</DialogDescription>
         </DialogHeader>
+        {issue.isError && (
+          <Alert variant="destructive">
+            <CircleAlertIcon className="size-4" />
+            <AlertTitle>签发失败</AlertTitle>
+            <AlertDescription>{getErrorMessage(issue.error)}</AlertDescription>
+          </Alert>
+        )}
         <form
           className="space-y-4"
           onSubmit={handleSubmit((v) => issue.mutate(v))}

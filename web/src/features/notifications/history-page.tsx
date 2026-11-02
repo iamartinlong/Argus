@@ -23,6 +23,9 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { api, getErrorMessageAsync, type Page } from "@/lib/api"
+import { RefreshButton } from "@/components/refresh-button"
+import { TableRefreshOverlay } from "@/components/table-refresh-overlay"
+import { useTableRefresh } from "@/hooks/use-table-refresh"
 
 interface SendLog {
   id: string
@@ -55,7 +58,7 @@ export function NotificationHistoryPage() {
   const [applied, setApplied] = useState({ status: "all", keyword: "" })
   const [page, setPage] = useState(0)
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isFetching, refetch } = useQuery({
     queryKey: ["notification-send-logs", applied, page],
     queryFn: async () => {
       const params = new URLSearchParams({ limit: String(PAGE_SIZE), offset: String(page * PAGE_SIZE) })
@@ -65,6 +68,7 @@ export function NotificationHistoryPage() {
       return res.data
     },
   })
+  const { refreshing, refresh } = useTableRefresh(refetch)
   const logs = data?.items
 
   const search = () => {
@@ -98,6 +102,7 @@ export function NotificationHistoryPage() {
     <Card className="flex-1">
       <CardHeader className="flex flex-row items-center justify-between space-y-0">
         <CardTitle>通知发送历史</CardTitle>
+        <RefreshButton fetching={isFetching} onClick={refresh} />
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex flex-wrap items-end gap-3">
@@ -136,57 +141,60 @@ export function NotificationHistoryPage() {
           </div>
         </div>
 
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-40">时间</TableHead>
-              <TableHead className="w-28">事件</TableHead>
-              <TableHead className="w-36">规则</TableHead>
-              <TableHead className="w-36">渠道</TableHead>
-              <TableHead>证书</TableHead>
-              <TableHead className="w-24">状态</TableHead>
-              <TableHead className="w-48">详情</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {isLoading && (
+        <div className="relative">
+          <TableRefreshOverlay active={refreshing} />
+          <Table>
+            <TableHeader>
               <TableRow>
-                <TableCell colSpan={7} className="text-center text-muted-foreground">加载中...</TableCell>
+                <TableHead className="w-40">时间</TableHead>
+                <TableHead className="w-28">事件</TableHead>
+                <TableHead className="w-36">规则</TableHead>
+                <TableHead className="w-36">渠道</TableHead>
+                <TableHead>证书</TableHead>
+                <TableHead className="w-24">状态</TableHead>
+                <TableHead className="w-48">详情</TableHead>
               </TableRow>
-            )}
-            {!isLoading && (!logs || logs.length === 0) && (
-              <TableRow>
-                <TableCell colSpan={7} className="text-center text-muted-foreground py-10">
-                  <SendHorizonal className="mx-auto mb-2 size-8 opacity-50" />
-                  暂无发送记录
-                </TableCell>
-              </TableRow>
-            )}
-            {logs?.map((l) => (
-              <TableRow key={l.id}>
-                <TableCell className="whitespace-nowrap text-muted-foreground">{formatTime(l.sent_at)}</TableCell>
-                <TableCell>
-                  <Badge variant="outline">{eventNames[l.event] ?? (l.event || "-")}</Badge>
-                </TableCell>
-                <TableCell>{l.rule_name || "-"}</TableCell>
-                <TableCell>{l.channel_name || "-"}</TableCell>
-                <TableCell className="max-w-48 truncate text-muted-foreground" title={l.cert_id}>
-                  {l.cert_id || "-"}
-                </TableCell>
-                <TableCell>
-                  {l.status === "success" ? (
-                    <Badge variant="outline" className="bg-green-500/15 text-green-600 dark:text-green-400">成功</Badge>
-                  ) : (
-                    <Badge variant="destructive">失败</Badge>
-                  )}
-                </TableCell>
-                <TableCell className="max-w-48 truncate text-muted-foreground" title={l.detail}>
-                  {l.detail || "-"}
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {isLoading && (
+                <TableRow>
+                  <TableCell colSpan={7} className="text-center text-muted-foreground">加载中...</TableCell>
+                </TableRow>
+              )}
+              {!isLoading && (!logs || logs.length === 0) && (
+                <TableRow>
+                  <TableCell colSpan={7} className="text-center text-muted-foreground py-10">
+                    <SendHorizonal className="mx-auto mb-2 size-8 opacity-50" />
+                    暂无发送记录
+                  </TableCell>
+                </TableRow>
+              )}
+              {logs?.map((l) => (
+                <TableRow key={l.id}>
+                  <TableCell className="whitespace-nowrap text-muted-foreground">{formatTime(l.sent_at)}</TableCell>
+                  <TableCell>
+                    <Badge variant="outline">{eventNames[l.event] ?? (l.event || "-")}</Badge>
+                  </TableCell>
+                  <TableCell>{l.rule_name || "-"}</TableCell>
+                  <TableCell>{l.channel_name || "-"}</TableCell>
+                  <TableCell className="max-w-48 truncate text-muted-foreground" title={l.cert_id}>
+                    {l.cert_id || "-"}
+                  </TableCell>
+                  <TableCell>
+                    {l.status === "success" ? (
+                      <Badge variant="outline" className="bg-green-500/15 text-green-600 dark:text-green-400">成功</Badge>
+                    ) : (
+                      <Badge variant="destructive">失败</Badge>
+                    )}
+                  </TableCell>
+                  <TableCell className="max-w-48 truncate text-muted-foreground" title={l.detail}>
+                    {l.detail || "-"}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
 
         <div className="flex items-center justify-between">
           <span className="text-sm text-muted-foreground">

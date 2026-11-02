@@ -35,6 +35,9 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { api, getErrorMessage } from "@/lib/api"
+import { RefreshButton } from "@/components/refresh-button"
+import { TableRefreshOverlay } from "@/components/table-refresh-overlay"
+import { useTableRefresh } from "@/hooks/use-table-refresh"
 import type { AcmeAccount, ContactPerson } from "@/lib/types"
 
 const accountSchema = z.object({
@@ -59,13 +62,14 @@ export function AcmeAccountsPage() {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editing, setEditing] = useState<AcmeAccount | null>(null)
 
-  const { data: accounts, isLoading } = useQuery({
+  const { data: accounts, isLoading, isFetching, refetch } = useQuery({
     queryKey: ["acme-accounts"],
     queryFn: async () => {
       const res = await api.get<AcmeAccount[]>("/acme-accounts")
       return res.data
     },
   })
+  const { refreshing, refresh } = useTableRefresh(refetch)
 
   const { data: contacts } = useQuery({
     queryKey: ["contacts"],
@@ -204,96 +208,102 @@ export function AcmeAccountsPage() {
     <Card className="flex-1">
       <CardHeader className="flex flex-row items-center justify-between space-y-0">
         <CardTitle>SSL 渠道账户</CardTitle>
-        <Button onClick={openCreate}>
-          <Plus className="mr-2 size-4" />
-          新建账户
-        </Button>
+        <div className="flex gap-2">
+          <RefreshButton fetching={isFetching} onClick={refresh} />
+          <Button onClick={openCreate}>
+            <Plus className="mr-2 size-4" />
+            新建账户
+          </Button>
+        </div>
       </CardHeader>
       <CardContent>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>名称</TableHead>
-              <TableHead>渠道</TableHead>
-              <TableHead>目录</TableHead>
-              <TableHead>EAB</TableHead>
-              <TableHead>状态</TableHead>
-              <TableHead className="text-right">操作</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {isLoading && (
+        <div className="relative">
+          <TableRefreshOverlay active={refreshing} />
+          <Table>
+            <TableHeader>
               <TableRow>
-                <TableCell colSpan={6} className="text-center text-muted-foreground">加载中...</TableCell>
+                <TableHead>名称</TableHead>
+                <TableHead>渠道</TableHead>
+                <TableHead>目录</TableHead>
+                <TableHead>EAB</TableHead>
+                <TableHead>状态</TableHead>
+                <TableHead className="text-right">操作</TableHead>
               </TableRow>
-            )}
-            {!isLoading && (!accounts || accounts.length === 0) && (
-              <TableRow>
-                <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
-                  暂无渠道账户
-                </TableCell>
-              </TableRow>
-            )}
-            {accounts?.map((a) => (
-              <TableRow key={a.id}>
-                <TableCell className="font-medium">{a.name}</TableCell>
-                <TableCell>{a.provider}</TableCell>
-                <TableCell className="font-mono text-xs text-muted-foreground max-w-[240px] truncate">
-                  {a.directory_url}
-                </TableCell>
-                <TableCell>
-                  {a.provider === "acme" ? (
-                    a.has_eab ? (
-                      <Badge variant="outline">EAB 已配置</Badge>
+            </TableHeader>
+            <TableBody>
+              {isLoading && (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center text-muted-foreground">加载中...</TableCell>
+                </TableRow>
+              )}
+              {!isLoading && (!accounts || accounts.length === 0) && (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                    暂无渠道账户
+                  </TableCell>
+                </TableRow>
+              )}
+              {accounts?.map((a) => (
+                <TableRow key={a.id}>
+                  <TableCell className="font-medium">{a.name}</TableCell>
+                  <TableCell>{a.provider}</TableCell>
+                  <TableCell className="font-mono text-xs text-muted-foreground max-w-[240px] truncate">
+                    {a.directory_url}
+                  </TableCell>
+                  <TableCell>
+                    {a.provider === "acme" ? (
+                      a.has_eab ? (
+                        <Badge variant="outline">EAB 已配置</Badge>
+                      ) : (
+                        <span className="text-muted-foreground">-</span>
+                      )
+                    ) : a.has_credentials ? (
+                      <Badge variant="outline">凭据已配置</Badge>
                     ) : (
-                      <span className="text-muted-foreground">-</span>
-                    )
-                  ) : a.has_credentials ? (
-                    <Badge variant="outline">凭据已配置</Badge>
-                  ) : (
-                    <span className="text-muted-foreground">未配置</span>
-                  )}
-                </TableCell>
-                <TableCell>
-                  {a.status === "active" ? (
-                    <Badge variant="outline" className="bg-green-500/15 text-green-600 dark:text-green-400">
-                      正常
-                    </Badge>
-                  ) : (
-                    <Badge variant="outline" className="bg-red-500/15 text-red-600 dark:text-red-400">
-                      错误
-                    </Badge>
-                  )}
-                </TableCell>
-                <TableCell className="text-right space-x-1">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => testAccount.mutate(a.id)}
-                    disabled={testAccount.isPending}
-                  >
-                    <PlayCircle className="mr-1 size-4" />
-                    测试
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={() => openEdit(a)}>
-                    <Pencil className="mr-1 size-4" />
-                    编辑
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-destructive"
-                    onClick={() => {
-                      if (confirm(`确认删除账户 ${a.name}？`)) remove.mutate(a.id)
-                    }}
-                  >
-                    <Trash2 className="size-4" />
-                  </Button>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+                      <span className="text-muted-foreground">未配置</span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {a.status === "active" ? (
+                      <Badge variant="outline" className="bg-green-500/15 text-green-600 dark:text-green-400">
+                        正常
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="bg-red-500/15 text-red-600 dark:text-red-400">
+                        错误
+                      </Badge>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-right space-x-1">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => testAccount.mutate(a.id)}
+                      disabled={testAccount.isPending}
+                    >
+                      <PlayCircle className="mr-1 size-4" />
+                      测试
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => openEdit(a)}>
+                      <Pencil className="mr-1 size-4" />
+                      编辑
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-destructive"
+                      onClick={() => {
+                        if (confirm(`确认删除账户 ${a.name}？`)) remove.mutate(a.id)
+                      }}
+                    >
+                      <Trash2 className="size-4" />
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
       </CardContent>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

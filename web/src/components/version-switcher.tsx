@@ -18,7 +18,7 @@ import {
   LogOutIcon,
 } from "lucide-react"
 import { useNavigate } from "react-router-dom"
-import { useQueryClient } from "@tanstack/react-query"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { useAuthStore } from "@/stores/auth-store"
 import { api } from "@/lib/api"
 
@@ -27,6 +27,17 @@ export function VersionSwitcher() {
   const queryClient = useQueryClient()
   const user = useAuthStore((s) => s.user)
   const clearAuth = useAuthStore((s) => s.clearAuth)
+
+  // 服务端版本号（与运行中的二进制一致，避免前端 package.json 漂移）
+  const { data: versionInfo } = useQuery({
+    queryKey: ["version"],
+    queryFn: async () => {
+      const res = await api.get<{ version: string }>("/system/version")
+      return res.data
+    },
+    staleTime: Number.POSITIVE_INFINITY,
+    retry: false,
+  })
 
   return (
     <SidebarMenu>
@@ -44,7 +55,14 @@ export function VersionSwitcher() {
               <ShieldCheckIcon className="size-4" />
             </div>
             <div className="flex flex-col gap-0.5 leading-none">
-              <span className="font-medium">Argus</span>
+              <span className="flex items-baseline gap-1.5 font-medium">
+                Argus
+                {versionInfo?.version && (
+                  <span className="text-[0.65rem] font-normal opacity-50">
+                    v{versionInfo.version}
+                  </span>
+                )}
+              </span>
               <span className="text-xs opacity-70">{user?.username ?? "未登录"}</span>
             </div>
             <ChevronsUpDownIcon className="ml-auto" />
@@ -55,6 +73,14 @@ export function VersionSwitcher() {
                 {user?.username}（{user?.role}）
               </DropdownMenuLabel>
             </DropdownMenuGroup>
+            {versionInfo?.version && (
+              <>
+                <DropdownMenuSeparator />
+                <div className="px-2 py-1.5 text-xs text-muted-foreground">
+                  Argus v{versionInfo.version}
+                </div>
+              </>
+            )}
             <DropdownMenuSeparator />
             <DropdownMenuItem
               onClick={async () => {

@@ -24,6 +24,9 @@ import {
 } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { api, getErrorMessage, getErrorMessageAsync } from "@/lib/api"
+import { RefreshButton } from "@/components/refresh-button"
+import { TableRefreshOverlay } from "@/components/table-refresh-overlay"
+import { useTableRefresh } from "@/hooks/use-table-refresh"
 import { NOTIFICATION_EVENTS, type Certificate, type Order } from "@/lib/types"
 import { CertStatusBadge, OrderStatusBadge } from "./status-badge"
 
@@ -58,7 +61,7 @@ export function CertificateDetailPage() {
   const [notifyOpen, setNotifyOpen] = useState(false)
   const [selectedNotifyEvents, setSelectedNotifyEvents] = useState<string[]>([])
 
-  const { data: cert, isLoading } = useQuery({
+  const { data: cert, isLoading, isFetching: certFetching, refetch: refetchCert } = useQuery({
     queryKey: ["certificate", id],
     queryFn: async () => {
       const res = await api.get<Certificate>(`/certificates/${id}`)
@@ -66,7 +69,7 @@ export function CertificateDetailPage() {
     },
   })
 
-  const { data: orders } = useQuery({
+  const { data: orders, refetch: refetchOrders } = useQuery({
     queryKey: ["certificate-orders", id],
     queryFn: async () => {
       const res = await api.get<Order[]>(`/certificates/${id}/orders`)
@@ -74,12 +77,17 @@ export function CertificateDetailPage() {
     },
   })
 
-  const { data: deployRecords } = useQuery({
+  const { data: deployRecords, refetch: refetchDeployRecords } = useQuery({
     queryKey: ["deploy-records", id],
     queryFn: async () => {
       const res = await api.get<DeployRecord[]>(`/certificates/${id}/deploy-records`)
       return res.data
     },
+  })
+
+  // 一次刷新覆盖证书详情、签发记录、部署记录三个查询
+  const { refreshing, refresh } = useTableRefresh(async () => {
+    await Promise.all([refetchCert(), refetchOrders(), refetchDeployRecords()])
   })
 
   const { data: targets } = useQuery({
@@ -231,6 +239,7 @@ export function CertificateDetailPage() {
             <CertStatusBadge status={cert.status} />
           </CardTitle>
           <div className="flex gap-2">
+            <RefreshButton fetching={certFetching} onClick={refresh} />
             <Button
               variant="outline"
               size="sm"
@@ -293,7 +302,8 @@ export function CertificateDetailPage() {
             </Dialog>
           </div>
         </CardHeader>
-        <CardContent className="grid gap-4 md:grid-cols-2 text-sm">
+        <CardContent className="grid gap-4 md:grid-cols-2 text-sm relative">
+          <TableRefreshOverlay active={refreshing} label="刷新中..." className="rounded-lg" />
           <div className="space-y-1">
             <p className="text-muted-foreground">SAN 域名</p>
             <p className="font-mono break-all">{cert.domains.join(", ")}</p>

@@ -11,6 +11,9 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { api, getErrorMessage } from "@/lib/api"
+import { RefreshButton } from "@/components/refresh-button"
+import { TableRefreshOverlay } from "@/components/table-refresh-overlay"
+import { useTableRefresh } from "@/hooks/use-table-refresh"
 
 interface Agent {
   id: string
@@ -34,7 +37,7 @@ export function AgentDetailPage() {
   const [editName, setEditName] = useState("")
   const [upgradeVersion, setUpgradeVersion] = useState("")
 
-  const { data: agent, isLoading } = useQuery({
+  const { data: agent, isLoading, isFetching: agentFetching, refetch: refetchAgent } = useQuery({
     queryKey: ["agent", id],
     queryFn: async () => {
       const res = await api.get<Agent>(`/agents/${id}`)
@@ -43,7 +46,7 @@ export function AgentDetailPage() {
     enabled: !!id,
   })
 
-  const { data: tasks } = useQuery({
+  const { data: tasks, refetch: refetchTasks } = useQuery({
     queryKey: ["agent-tasks", id],
     queryFn: async () => {
       const res = await api.get<any[]>(`/agents/${id}/tasks`)
@@ -58,6 +61,11 @@ export function AgentDetailPage() {
       const res = await api.get<any[]>("/agents/binaries")
       return res.data
     },
+  })
+
+  // 一次刷新覆盖 Agent 信息与任务历史
+  const { refreshing, refresh } = useTableRefresh(async () => {
+    await Promise.all([refetchAgent(), refetchTasks()])
   })
 
   const rename = useMutation({
@@ -225,9 +233,17 @@ export function AgentDetailPage() {
 
       {tab === "tasks" && (
         <Card>
-          <CardHeader><CardTitle>任务历史（最近 50 条）</CardTitle></CardHeader>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0">
+            <CardTitle>任务历史（最近 50 条）</CardTitle>
+            <RefreshButton
+              fetching={agentFetching}
+              onClick={refresh}
+            />
+          </CardHeader>
           <CardContent>
-            <Table>
+            <div className="relative">
+              <TableRefreshOverlay active={refreshing} />
+              <Table>
               <TableHeader><TableRow><TableHead>证书</TableHead><TableHead>状态</TableHead><TableHead>消息</TableHead><TableHead>时间</TableHead></TableRow></TableHeader>
               <TableBody>
                 {!tasks || tasks.length === 0 ? (
@@ -244,6 +260,7 @@ export function AgentDetailPage() {
                 ))}
               </TableBody>
             </Table>
+            </div>
           </CardContent>
         </Card>
       )}

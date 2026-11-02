@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
@@ -35,6 +35,9 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { api, getErrorMessage } from "@/lib/api"
+import { RefreshButton } from "@/components/refresh-button"
+import { TableRefreshOverlay } from "@/components/table-refresh-overlay"
+import { useTableRefresh } from "@/hooks/use-table-refresh"
 
 interface Agent {
   id: string
@@ -94,7 +97,7 @@ export function AgentsPage() {
   const [editName, setEditName] = useState("")
   const fileRef = useRef<HTMLInputElement>(null)
 
-  const { data: agents } = useQuery({
+  const { data: agents, isFetching: agentsFetching, refetch: refetchAgents } = useQuery({
     queryKey: ["agents"],
     queryFn: async () => {
       const res = await api.get<Agent[]>("/agents")
@@ -102,6 +105,7 @@ export function AgentsPage() {
     },
     refetchInterval: 5000, // 在线状态实时刷新
   })
+  const { refreshing, refresh } = useTableRefresh(refetchAgents)
 
   const { data: binaries } = useQuery({
     queryKey: ["agent-binaries"],
@@ -114,6 +118,7 @@ export function AgentsPage() {
   const {
     register,
     handleSubmit,
+    reset,
     formState: { errors },
   } = useForm<AgentForm>({ resolver: zodResolver(agentSchema) })
 
@@ -128,6 +133,11 @@ export function AgentsPage() {
     },
     onError: (err) => toast.error(getErrorMessage(err)),
   })
+
+  // 对话框常驻挂载：打开时重置，避免上次的 Agent 名称残留
+  useEffect(() => {
+    if (dialogOpen) reset()
+  }, [dialogOpen, reset])
 
   const remove = useMutation({
     mutationFn: async (id: string) => {
@@ -230,6 +240,7 @@ export function AgentsPage() {
       <CardHeader className="flex flex-row items-center justify-between space-y-0">
         <CardTitle>Agent 管理</CardTitle>
         <div className="flex gap-2">
+          <RefreshButton fetching={agentsFetching} onClick={refresh} />
           {selected.length > 0 && (
             <Button
               variant="outline"
@@ -251,145 +262,159 @@ export function AgentsPage() {
         </div>
       </CardHeader>
       <CardContent>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-10">
-                <input
-                  type="checkbox"
-                  className="size-4 accent-primary"
-                  checked={(agents?.length ?? 0) > 0 && selected.length === agents?.length}
-                  onChange={(e) => {
-                    if (e.target.checked) {
-                      setSelected((agents ?? []).map((a) => a.id))
-                    } else {
-                      setSelected([])
-                    }
-                  }}
-                />
-              </TableHead>
-              <TableHead>名称</TableHead>
-              <TableHead>状态</TableHead>
-              <TableHead>系统</TableHead>
-              <TableHead>版本</TableHead>
-              <TableHead>最后心跳</TableHead>
-              <TableHead className="text-right">操作</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {!agents || agents.length === 0 ? (
+        <div className="relative">
+          <TableRefreshOverlay active={refreshing} />
+          <Table>
+            <TableHeader>
               <TableRow>
-                <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
-                  <MonitorSmartphone className="mx-auto mb-2 size-8 opacity-50" />
-                  暂无 Agent。添加后，业务机通过出站连接拉取部署任务（可穿透 NAT）
-                </TableCell>
-              </TableRow>
-            ) : (
-              agents.map((a) => (
-                <TableRow key={a.id} className={selected.includes(a.id) ? "bg-primary/5" : ""}>
-                  <TableCell>
-                    <input
-                      type="checkbox"
-                      className="size-4 accent-primary"
-                      checked={selected.includes(a.id)}
-                      onChange={() =>
-                        setSelected((prev) =>
-                          prev.includes(a.id) ? prev.filter((x) => x !== a.id) : [...prev, a.id],
-                        )
+                <TableHead className="w-10">
+                  <input
+                    type="checkbox"
+                    className="size-4 accent-primary"
+                    checked={(agents?.length ?? 0) > 0 && selected.length === agents?.length}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setSelected((agents ?? []).map((a) => a.id))
+                      } else {
+                        setSelected([])
                       }
-                    />
-                  </TableCell>
-                  <TableCell className="font-medium">
-                    <NavLink to={`/agents/${a.id}`} className="hover:underline text-primary">
-                      {a.name}
-                    </NavLink>
-                  </TableCell>
-                  <TableCell>
-                    {!a.enabled ? (
-                      <Badge variant="outline" className="bg-red-500/15 text-red-600 dark:text-red-400">已禁用</Badge>
-                    ) : a.status === "online" ? (
-                      <Badge variant="outline" className="bg-green-500/15 text-green-600 dark:text-green-400">在线</Badge>
-                    ) : (
-                      <Badge variant="outline" className="bg-zinc-500/15 text-zinc-600 dark:text-zinc-400">离线</Badge>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">{a.os || "-"}</TableCell>
-                  <TableCell className="text-muted-foreground">{a.version || "-"}</TableCell>
-                  <TableCell>
-                    {a.last_seen_at ? new Date(a.last_seen_at).toLocaleString() : "从未连接"}
-                  </TableCell>
-                  <TableCell className="text-right space-x-1">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        if (a.enabled) {
-                          if (confirm(`禁用 Agent ${a.name}？禁用后其 Token 立即失效并置离线`)) {
-                            setEnabled.mutate({ id: a.id, enabled: false })
-                          }
-                        } else {
-                          setEnabled.mutate({ id: a.id, enabled: true })
-                        }
-                      }}
-                    >
-                      {a.enabled ? (
-                        <>
-                          <Ban className="mr-1 size-4" />禁用
-                        </>
-                      ) : (
-                        <>
-                          <CircleCheck className="mr-1 size-4" />启用
-                        </>
-                      )}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        setEditAgent(a)
-                        setEditName(a.name)
-                      }}
-                    >
-                      <Eye className="mr-1 size-4" />
-                      编辑
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => { setPendingUpgradeVersion(""); setUpgradeTarget(a) }}
-                      disabled={!binaries || binaries.length === 0}
-                      title={!binaries || binaries.length === 0 ? "请先上传新版本二进制" : ""}
-                    >
-                      <Rocket className="mr-1 size-4" />
-                      升级
-                    </Button>
-                    <Button variant="outline" size="sm" onClick={() => setHistoryAgent(a)}>
-                      <History className="mr-1 size-4" />
-                      任务
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-destructive"
-                      onClick={() => {
-                        if (confirm(`确认删除 Agent ${a.name}？`)) remove.mutate(a.id)
-                      }}
-                    >
-                      <Trash2 className="size-4" />
-                    </Button>
+                    }}
+                  />
+                </TableHead>
+                <TableHead>名称</TableHead>
+                <TableHead>状态</TableHead>
+                <TableHead>系统</TableHead>
+                <TableHead>版本</TableHead>
+                <TableHead>最后心跳</TableHead>
+                <TableHead className="text-right">操作</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {!agents || agents.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                    <MonitorSmartphone className="mx-auto mb-2 size-8 opacity-50" />
+                    暂无 Agent。添加后，业务机通过出站连接拉取部署任务（可穿透 NAT）
                   </TableCell>
                 </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
+              ) : (
+                agents.map((a) => (
+                  <TableRow key={a.id} className={selected.includes(a.id) ? "bg-primary/5" : ""}>
+                    <TableCell>
+                      <input
+                        type="checkbox"
+                        className="size-4 accent-primary"
+                        checked={selected.includes(a.id)}
+                        onChange={() =>
+                          setSelected((prev) =>
+                            prev.includes(a.id) ? prev.filter((x) => x !== a.id) : [...prev, a.id],
+                          )
+                        }
+                      />
+                    </TableCell>
+                    <TableCell className="font-medium">
+                      <NavLink to={`/agents/${a.id}`} className="hover:underline text-primary">
+                        {a.name}
+                      </NavLink>
+                    </TableCell>
+                    <TableCell>
+                      {!a.enabled ? (
+                        <Badge variant="outline" className="bg-red-500/15 text-red-600 dark:text-red-400">已禁用</Badge>
+                      ) : a.status === "online" ? (
+                        <Badge variant="outline" className="bg-green-500/15 text-green-600 dark:text-green-400">在线</Badge>
+                      ) : (
+                        <Badge variant="outline" className="bg-zinc-500/15 text-zinc-600 dark:text-zinc-400">离线</Badge>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">{a.os || "-"}</TableCell>
+                    <TableCell className="text-muted-foreground">{a.version || "-"}</TableCell>
+                    <TableCell>
+                      {a.last_seen_at ? new Date(a.last_seen_at).toLocaleString() : "从未连接"}
+                    </TableCell>
+                    <TableCell className="text-right space-x-1">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          if (a.enabled) {
+                            if (confirm(`禁用 Agent ${a.name}？禁用后其 Token 立即失效并置离线`)) {
+                              setEnabled.mutate({ id: a.id, enabled: false })
+                            }
+                          } else {
+                            setEnabled.mutate({ id: a.id, enabled: true })
+                          }
+                        }}
+                      >
+                        {a.enabled ? (
+                          <>
+                            <Ban className="mr-1 size-4" />禁用
+                          </>
+                        ) : (
+                          <>
+                            <CircleCheck className="mr-1 size-4" />启用
+                          </>
+                        )}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setEditAgent(a)
+                          setEditName(a.name)
+                        }}
+                      >
+                        <Eye className="mr-1 size-4" />
+                        编辑
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => { setPendingUpgradeVersion(""); setUpgradeTarget(a) }}
+                        disabled={!binaries || binaries.length === 0}
+                        title={!binaries || binaries.length === 0 ? "请先上传新版本二进制" : ""}
+                      >
+                        <Rocket className="mr-1 size-4" />
+                        升级
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => setHistoryAgent(a)}>
+                        <History className="mr-1 size-4" />
+                        任务
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-destructive"
+                        onClick={() => {
+                          if (confirm(`确认删除 Agent ${a.name}？`)) remove.mutate(a.id)
+                        }}
+                      >
+                        <Trash2 className="size-4" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </div>
         <p className="mt-4 text-xs text-muted-foreground">
           Agent 在业务机运行（argus-agent --config agent.json），配置 server_url 与 token 后出站轮询任务，
           支持 NAT/无入站端口场景；部署目标类型选择「Agent」并绑定本页创建的 Agent。
         </p>
       </CardContent>
 
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+      <Dialog
+        open={dialogOpen}
+        onOpenChange={(o) => {
+          // 关闭即清空（覆盖取消按钮/Esc/遮罩/X 所有路径）：
+          // 表单名称，以及"仅显示一次"的连接 Token（重开不应回显旧 Token）
+          if (!o) {
+            reset()
+            setCreatedToken(null)
+          }
+          setDialogOpen(o)
+        }}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>添加 Agent</DialogTitle>

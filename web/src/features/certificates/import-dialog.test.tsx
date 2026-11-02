@@ -14,7 +14,8 @@ const apiMock = api as unknown as {
 
 vi.mock("@/lib/api", () => ({
   api: { get: vi.fn(), post: vi.fn(), put: vi.fn(), delete: vi.fn() },
-  getErrorMessage: vi.fn(() => "请求失败"),
+  // 透传真实错误消息，使内联 Alert 的文案断言有效（而非 mock 常量）
+  getErrorMessage: vi.fn((e: unknown) => (e as { message?: string })?.message ?? "请求失败"),
 }))
 
 class FakeFileReader {
@@ -137,5 +138,29 @@ describe("ImportDialog 状态重置", () => {
 
     expect(screen.getByPlaceholderText("example.com")).toBeInTheDocument()
     expect(screen.queryByPlaceholderText("PFX 文件的密码")).not.toBeInTheDocument()
+  })
+
+  it("导入失败时显示内联 Alert（详细错误常驻，不随 toast 消失）", async () => {
+    const user = userEvent.setup()
+    apiMock.post.mockRejectedValue(new Error("PFX 密码错误（或文件损坏）"))
+    const { open } = renderDialog()
+
+    open(true)
+    await screen.findByText("导入证书")
+
+    await user.type(screen.getByPlaceholderText("example.com"), "example.com")
+    await user.type(screen.getByPlaceholderText("-----BEGIN CERTIFICATE-----"), "CERTDATA")
+    await user.type(screen.getByPlaceholderText("-----BEGIN EC PRIVATE KEY-----"), "KEYDATA")
+    await user.click(screen.getByRole("button", { name: "导入" }))
+
+    const alert = await screen.findByRole("alert")
+    expect(alert).toHaveTextContent("导入失败")
+    expect(alert).toHaveTextContent("PFX 密码错误（或文件损坏）")
+
+    // 关闭再打开：错误态一并清除（不残留上次的 Alert）
+    await user.click(screen.getByRole("button", { name: "取消" }))
+    open(true)
+    await screen.findByText("导入证书")
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument()
   })
 })

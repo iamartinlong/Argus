@@ -35,6 +35,9 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { api, getErrorMessage } from "@/lib/api"
+import { RefreshButton } from "@/components/refresh-button"
+import { TableRefreshOverlay } from "@/components/table-refresh-overlay"
+import { useTableRefresh } from "@/hooks/use-table-refresh"
 
 interface ChannelRecord {
   id: string
@@ -114,13 +117,14 @@ export function ChannelsPage() {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editing, setEditing] = useState<ChannelRecord | null>(null)
 
-  const { data: channels, isLoading } = useQuery({
+  const { data: channels, isLoading, isFetching, refetch } = useQuery({
     queryKey: ["notification-channels"],
     queryFn: async () => {
       const res = await api.get<ChannelRecord[]>("/notification-channels")
       return res.data
     },
   })
+  const { refreshing, refresh } = useTableRefresh(refetch)
 
   const {
     register,
@@ -228,83 +232,89 @@ export function ChannelsPage() {
     <Card className="flex-1">
       <CardHeader className="flex flex-row items-center justify-between space-y-0">
         <CardTitle>通知渠道</CardTitle>
-        <Button onClick={openCreate}>
-          <Plus className="mr-2 size-4" />
-          新增渠道
-        </Button>
+        <div className="flex gap-2">
+          <RefreshButton fetching={isFetching} onClick={refresh} />
+          <Button onClick={openCreate}>
+            <Plus className="mr-2 size-4" />
+            新增渠道
+          </Button>
+        </div>
       </CardHeader>
       <CardContent>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>名称</TableHead>
-              <TableHead>类型</TableHead>
-              <TableHead>状态</TableHead>
-              <TableHead>创建时间</TableHead>
-              <TableHead className="text-right">操作</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {isLoading && (
+        <div className="relative">
+          <TableRefreshOverlay active={refreshing} />
+          <Table>
+            <TableHeader>
               <TableRow>
-                <TableCell colSpan={5} className="text-center text-muted-foreground">加载中...</TableCell>
+                <TableHead>名称</TableHead>
+                <TableHead>类型</TableHead>
+                <TableHead>状态</TableHead>
+                <TableHead>创建时间</TableHead>
+                <TableHead className="text-right">操作</TableHead>
               </TableRow>
-            )}
-            {!isLoading && (!channels || channels.length === 0) && (
-              <TableRow>
-                <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
-                  <BellRing className="mx-auto mb-2 size-8 opacity-50" />
-                  暂无通知渠道，新增后可在通知规则中选择
-                </TableCell>
-              </TableRow>
-            )}
-            {channels?.map((c) => (
-              <TableRow key={c.id}>
-                <TableCell className="font-medium">{c.name}</TableCell>
-                <TableCell>
-                  <Badge variant="outline">{channelMeta[c.type]?.name ?? c.type}</Badge>
-                </TableCell>
-                <TableCell>
-                  {c.enabled ? (
-                    <Badge variant="outline" className="bg-green-500/15 text-green-600 dark:text-green-400">启用</Badge>
-                  ) : (
-                    <Badge variant="outline" className="bg-zinc-500/15 text-zinc-600 dark:text-zinc-400">停用</Badge>
-                  )}
-                </TableCell>
-                <TableCell className="whitespace-nowrap text-muted-foreground">
-                  {new Date(c.created_at).toLocaleString()}
-                </TableCell>
-                <TableCell className="text-right">
-                  <div className="flex justify-end gap-1">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      disabled={testChannel.isPending}
-                      onClick={() => testChannel.mutate(c.id)}
-                    >
-                      <Send className="size-4" />
-                      测试
-                    </Button>
-                    <Button variant="ghost" size="sm" onClick={() => openEdit(c)}>
-                      <Pencil className="size-4" />
-                      编辑
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-destructive"
-                      onClick={() => {
-                        if (confirm(`确认删除渠道 ${c.name}？相关通知规则将不再发送该渠道。`)) remove.mutate(c.id)
-                      }}
-                    >
-                      <Trash2 className="size-4" />
-                    </Button>
-                  </div>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {isLoading && (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center text-muted-foreground">加载中...</TableCell>
+                </TableRow>
+              )}
+              {!isLoading && (!channels || channels.length === 0) && (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                    <BellRing className="mx-auto mb-2 size-8 opacity-50" />
+                    暂无通知渠道，新增后可在通知规则中选择
+                  </TableCell>
+                </TableRow>
+              )}
+              {channels?.map((c) => (
+                <TableRow key={c.id}>
+                  <TableCell className="font-medium">{c.name}</TableCell>
+                  <TableCell>
+                    <Badge variant="outline">{channelMeta[c.type]?.name ?? c.type}</Badge>
+                  </TableCell>
+                  <TableCell>
+                    {c.enabled ? (
+                      <Badge variant="outline" className="bg-green-500/15 text-green-600 dark:text-green-400">启用</Badge>
+                    ) : (
+                      <Badge variant="outline" className="bg-zinc-500/15 text-zinc-600 dark:text-zinc-400">停用</Badge>
+                    )}
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap text-muted-foreground">
+                    {new Date(c.created_at).toLocaleString()}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex justify-end gap-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        disabled={testChannel.isPending}
+                        onClick={() => testChannel.mutate(c.id)}
+                      >
+                        <Send className="size-4" />
+                        测试
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => openEdit(c)}>
+                        <Pencil className="size-4" />
+                        编辑
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-destructive"
+                        onClick={() => {
+                          if (confirm(`确认删除渠道 ${c.name}？相关通知规则将不再发送该渠道。`)) remove.mutate(c.id)
+                        }}
+                      >
+                        <Trash2 className="size-4" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
       </CardContent>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

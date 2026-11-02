@@ -34,6 +34,9 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { api, getErrorMessage } from "@/lib/api"
+import { RefreshButton } from "@/components/refresh-button"
+import { TableRefreshOverlay } from "@/components/table-refresh-overlay"
+import { useTableRefresh } from "@/hooks/use-table-refresh"
 import type { DnsProviderAccount } from "@/lib/types"
 
 const dnsAccountSchema = z.object({
@@ -52,13 +55,14 @@ export function DnsAccountsPage() {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editing, setEditing] = useState<DnsProviderAccount | null>(null)
 
-  const { data: accounts, isLoading } = useQuery({
+  const { data: accounts, isLoading, isFetching, refetch } = useQuery({
     queryKey: ["dns-accounts"],
     queryFn: async () => {
       const res = await api.get<DnsProviderAccount[]>("/dns-accounts")
       return res.data
     },
   })
+  const { refreshing, refresh } = useTableRefresh(refetch)
 
   const {
     register,
@@ -161,82 +165,88 @@ export function DnsAccountsPage() {
     <Card className="flex-1">
       <CardHeader className="flex flex-row items-center justify-between space-y-0">
         <CardTitle>DNS 验证账户</CardTitle>
-        <Button onClick={openCreate}>
-          <Plus className="mr-2 size-4" />
-          新建 DNS 账户
-        </Button>
+        <div className="flex gap-2">
+          <RefreshButton fetching={isFetching} onClick={refresh} />
+          <Button onClick={openCreate}>
+            <Plus className="mr-2 size-4" />
+            新建 DNS 账户
+          </Button>
+        </div>
       </CardHeader>
       <CardContent>
         <p className="text-sm text-muted-foreground mb-4">
           用于 ACME DNS-01 验证的 DNS 服务商凭据，证书签发时可复用，避免每张证书重复录入。
         </p>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>名称</TableHead>
-              <TableHead>服务商</TableHead>
-              <TableHead>凭据</TableHead>
-              <TableHead>状态</TableHead>
-              <TableHead className="text-right">操作</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {isLoading && (
+        <div className="relative">
+          <TableRefreshOverlay active={refreshing} />
+          <Table>
+            <TableHeader>
               <TableRow>
-                <TableCell colSpan={5} className="text-center text-muted-foreground">
-                  加载中...
-                </TableCell>
+                <TableHead>名称</TableHead>
+                <TableHead>服务商</TableHead>
+                <TableHead>凭据</TableHead>
+                <TableHead>状态</TableHead>
+                <TableHead className="text-right">操作</TableHead>
               </TableRow>
-            )}
-            {!isLoading && (!accounts || accounts.length === 0) && (
-              <TableRow>
-                <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
-                  暂无 DNS 账户
-                </TableCell>
-              </TableRow>
-            )}
-            {accounts?.map((a) => (
-              <TableRow key={a.id}>
-                <TableCell className="font-medium">{a.name}</TableCell>
-                <TableCell>{a.provider}</TableCell>
-                <TableCell>
-                  {a.has_credentials ? (
-                    <Badge variant="outline">已配置</Badge>
-                  ) : (
-                    <span className="text-muted-foreground">未配置</span>
-                  )}
-                </TableCell>
-                <TableCell>
-                  {a.status === "active" ? (
-                    <Badge variant="outline" className="bg-green-500/15 text-green-600 dark:text-green-400">
-                      正常
-                    </Badge>
-                  ) : (
-                    <Badge variant="outline" className="bg-red-500/15 text-red-600 dark:text-red-400">
-                      错误
-                    </Badge>
-                  )}
-                </TableCell>
-                <TableCell className="text-right space-x-1">
-                  <Button variant="outline" size="sm" onClick={() => openEdit(a)}>
-                    <Pencil className="mr-1 size-4" />
-                    编辑
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-destructive"
-                    onClick={() => {
-                      if (confirm(`确认删除 DNS 账户 ${a.name}？`)) remove.mutate(a.id)
-                    }}
-                  >
-                    <Trash2 className="size-4" />
-                  </Button>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {isLoading && (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center text-muted-foreground">
+                    加载中...
+                  </TableCell>
+                </TableRow>
+              )}
+              {!isLoading && (!accounts || accounts.length === 0) && (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                    暂无 DNS 账户
+                  </TableCell>
+                </TableRow>
+              )}
+              {accounts?.map((a) => (
+                <TableRow key={a.id}>
+                  <TableCell className="font-medium">{a.name}</TableCell>
+                  <TableCell>{a.provider}</TableCell>
+                  <TableCell>
+                    {a.has_credentials ? (
+                      <Badge variant="outline">已配置</Badge>
+                    ) : (
+                      <span className="text-muted-foreground">未配置</span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {a.status === "active" ? (
+                      <Badge variant="outline" className="bg-green-500/15 text-green-600 dark:text-green-400">
+                        正常
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="bg-red-500/15 text-red-600 dark:text-red-400">
+                        错误
+                      </Badge>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-right space-x-1">
+                    <Button variant="outline" size="sm" onClick={() => openEdit(a)}>
+                      <Pencil className="mr-1 size-4" />
+                      编辑
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-destructive"
+                      onClick={() => {
+                        if (confirm(`确认删除 DNS 账户 ${a.name}？`)) remove.mutate(a.id)
+                      }}
+                    >
+                      <Trash2 className="size-4" />
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
       </CardContent>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

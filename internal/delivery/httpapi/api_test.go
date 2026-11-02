@@ -108,6 +108,7 @@ func newTestServer(t *testing.T) *testServer {
 		ProviderNames:       []string{"acme"},
 		AccessTTL:           accessTTL,
 		RefreshTTL:          refreshTTL,
+		AppVersion:          "1.2.3-test",
 	})
 	return &testServer{t: t, handler: handler, db: db, userStore: userStore}
 }
@@ -198,6 +199,31 @@ func TestHealthz(t *testing.T) {
 	rec := s.do(http.MethodGet, "/healthz", nil, "")
 	if rec.Code != http.StatusOK {
 		t.Fatalf("healthz: %d", rec.Code)
+	}
+}
+
+func TestSystemVersion(t *testing.T) {
+	s := newTestServer(t)
+	s.seedUser("admin", "adminpass123456", domain.RoleAdmin)
+	adminToken := s.login("admin", "adminpass123456")
+
+	// 未登录不得获取版本信息（不向匿名暴露）
+	rec := s.do(http.MethodGet, "/api/v1/system/version", nil, "")
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401, got %d", rec.Code)
+	}
+
+	// 登录后返回 HandlerDeps.AppVersion（单一事实源：二进制版本号）
+	rec = s.do(http.MethodGet, "/api/v1/system/version", nil, adminToken)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("version: %d %s", rec.Code, rec.Body.String())
+	}
+	var resp struct {
+		Version string `json:"version"`
+	}
+	decodeData(t, rec, &resp)
+	if resp.Version != "1.2.3-test" {
+		t.Fatalf("version = %q, want 1.2.3-test", resp.Version)
 	}
 }
 

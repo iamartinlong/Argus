@@ -4,7 +4,9 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { toast } from "sonner"
 import { useEffect, useState } from "react"
+import { CircleAlertIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import {
   Dialog,
   DialogContent,
@@ -60,17 +62,6 @@ export function ImportDialog({ open, onOpenChange }: Props) {
   const pem = useForm<PemForm>({ resolver: zodResolver(pemSchema) })
   const pfx = useForm<PfxForm>({ resolver: zodResolver(pfxSchema) })
 
-  // 打开对话框时重置所有状态，避免上次（含私钥/PFX 内容）残留泄漏
-  useEffect(() => {
-    if (open) {
-      setMode("pem")
-      setDeployTargetIds([])
-      setNotifyEvents(IMPORT_NOTIFY_EVENTS.map((e) => e.value))
-      pem.reset()
-      pfx.reset()
-    }
-  }, [open, pem, pfx])
-
   const { data: deployTargets } = useQuery({
     queryKey: ["deploy-targets"],
     queryFn: async () => {
@@ -102,10 +93,26 @@ export function ImportDialog({ open, onOpenChange }: Props) {
       setDeployTargetIds([])
       onOpenChange(false)
     },
-    onError: (err) => {
-      toast.error(getErrorMessage(err))
+    onError: () => {
+      // 详细错误走内联 Alert（常驻，不被 toast 自动消失漏看）；toast 仅简短提醒
+      toast.error("导入失败")
     },
   })
+
+  // 打开对话框时重置所有状态，避免上次（含私钥/PFX 内容）残留泄漏
+  // 注意：必须用 mutation 的 reset（bindMethods 绑定的稳定函数）；
+  // 依赖整个 importCert 对象会把 effect 变成渲染循环（useMutation 每次渲染返回新对象）
+  const { reset: resetImport } = importCert
+  useEffect(() => {
+    if (open) {
+      setMode("pem")
+      setDeployTargetIds([])
+      setNotifyEvents(IMPORT_NOTIFY_EVENTS.map((e) => e.value))
+      pem.reset()
+      pfx.reset()
+      resetImport()
+    }
+  }, [open, pem, pfx, resetImport])
 
   const handlePemFile = async (field: "certificate" | "private_key", file?: File) => {
     if (!file) return
@@ -128,12 +135,34 @@ export function ImportDialog({ open, onOpenChange }: Props) {
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog
+      open={open}
+      onOpenChange={(o) => {
+        // 关闭即清空（覆盖取消按钮/Esc/遮罩/X 所有路径），
+        // 避免下次打开时闪现上次的私钥/PFX 内容
+        if (!o) {
+          setMode("pem")
+          setDeployTargetIds([])
+          setNotifyEvents(IMPORT_NOTIFY_EVENTS.map((e) => e.value))
+          pem.reset()
+          pfx.reset()
+          resetImport()
+        }
+        onOpenChange(o)
+      }}
+    >
       <DialogContent>
         <DialogHeader>
           <DialogTitle>导入证书</DialogTitle>
           <DialogDescription>导入已有证书（支持 PEM 文本或 PFX/P12 文件，如云厂商签发）</DialogDescription>
         </DialogHeader>
+        {importCert.isError && (
+          <Alert variant="destructive">
+            <CircleAlertIcon className="size-4" />
+            <AlertTitle>导入失败</AlertTitle>
+            <AlertDescription>{getErrorMessage(importCert.error)}</AlertDescription>
+          </Alert>
+        )}
         <form
           className="space-y-4"
           onSubmit={(e) => {

@@ -30,6 +30,9 @@ import {
 } from "@/components/ui/table"
 import { api, getErrorMessage } from "@/lib/api"
 import type { Certificate } from "@/lib/types"
+import { RefreshButton } from "@/components/refresh-button"
+import { TableRefreshOverlay } from "@/components/table-refresh-overlay"
+import { useTableRefresh } from "@/hooks/use-table-refresh"
 import { CertStatusBadge } from "./status-badge"
 import { IssueDialog } from "./issue-dialog"
 import { ImportDialog } from "./import-dialog"
@@ -57,13 +60,14 @@ export function CertificatesPage() {
   const [deleteTarget, setDeleteTarget] = useState<Certificate | null>(null)
   const [renewOpen, setRenewOpen] = useState(false)
 
-  const { data: certs, isLoading } = useQuery({
+  const { data: certs, isLoading, isFetching, refetch } = useQuery({
     queryKey: ["certificates"],
     queryFn: async () => {
       const res = await api.get<Certificate[]>("/certificates")
       return res.data
     },
   })
+  const { refreshing, refresh } = useTableRefresh(refetch)
 
   const { data: targets } = useQuery({
     queryKey: ["deploy-targets"],
@@ -134,6 +138,7 @@ export function CertificatesPage() {
       <CardHeader className="flex flex-row items-center justify-between space-y-0">
         <CardTitle>证书管理</CardTitle>
         <div className="flex gap-2">
+          <RefreshButton fetching={isFetching} onClick={refresh} />
           {selected.length > 0 && (
             <>
               <Button
@@ -174,90 +179,93 @@ export function CertificatesPage() {
         </div>
       </CardHeader>
       <CardContent>
-        <Table>
-          <TableHeader>
+        <div className="relative">
+          <TableRefreshOverlay active={refreshing} />
+          <Table>
+            <TableHeader>
             <TableRow>
-              <TableHead className="w-10">
-                <input
-                  type="checkbox"
-                  className="size-4 accent-primary"
-                  checked={certs != null && certs.length > 0 && selected.length === certs.length}
-                  onChange={toggleSelectAll}
-                />
-              </TableHead>
-              <TableHead>域名</TableHead>
-              <TableHead>状态</TableHead>
-              <TableHead>渠道</TableHead>
-              <TableHead>签发时间</TableHead>
-              <TableHead>到期时间</TableHead>
-              <TableHead className="text-right">操作</TableHead>
+            <TableHead className="w-10">
+            <input
+            type="checkbox"
+            className="size-4 accent-primary"
+            checked={certs != null && certs.length > 0 && selected.length === certs.length}
+            onChange={toggleSelectAll}
+            />
+            </TableHead>
+            <TableHead>域名</TableHead>
+            <TableHead>状态</TableHead>
+            <TableHead>渠道</TableHead>
+            <TableHead>签发时间</TableHead>
+            <TableHead>到期时间</TableHead>
+            <TableHead className="text-right">操作</TableHead>
             </TableRow>
-          </TableHeader>
-          <TableBody>
+            </TableHeader>
+            <TableBody>
             {isLoading && (
-              <TableRow>
-                <TableCell colSpan={7} className="text-center text-muted-foreground">
-                  加载中...
-                </TableCell>
-              </TableRow>
+            <TableRow>
+            <TableCell colSpan={7} className="text-center text-muted-foreground">
+            加载中...
+            </TableCell>
+            </TableRow>
             )}
             {!isLoading && (!certs || certs.length === 0) && (
-              <TableRow>
-                <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
-                  <ShieldCheck className="mx-auto mb-2 size-8 opacity-50" />
-                  暂无证书，点击"签发证书"开始
-                </TableCell>
-              </TableRow>
+            <TableRow>
+            <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+            <ShieldCheck className="mx-auto mb-2 size-8 opacity-50" />
+            暂无证书，点击"签发证书"开始
+            </TableCell>
+            </TableRow>
             )}
             {certs?.map((c) => (
-              <TableRow
-                key={c.id}
-                className={`cursor-pointer ${selected.includes(c.id) ? "bg-primary/5" : ""}`}
-                onClick={() => navigate(`/certificates/${c.id}`)}
-              >
-                <TableCell className="w-10" onClick={(e) => e.stopPropagation()}>
-                  <input
-                    type="checkbox"
-                    className="size-4 accent-primary"
-                    checked={selected.includes(c.id)}
-                    onChange={() => toggleSelect(c.id)}
-                  />
-                </TableCell>
-                <TableCell className="font-medium">
-                  {c.primary_domain}
-                  {c.domains.length > 1 && (
-                    <span className="ml-1 text-xs text-muted-foreground">+{c.domains.length - 1}</span>
-                  )}
-                </TableCell>
-                <TableCell>
-                  <CertStatusBadge status={c.status} />
-                </TableCell>
-                <TableCell className="text-muted-foreground">{c.provider === "import" ? "导入" : c.provider}</TableCell>
-                <TableCell>{c.not_before ? new Date(c.not_before).toLocaleDateString() : "-"}</TableCell>
-                <TableCell className={c.days_to_expire < 30 && c.status === "valid" ? "text-amber-600 font-medium" : ""}>
-                  {c.not_after ? new Date(c.not_after).toLocaleDateString() : "-"}
-                  {c.days_to_expire > 0 && c.status !== "revoked" && c.status !== "expired" && (
-                    <span className="ml-1 text-xs text-muted-foreground">({c.days_to_expire}天)</span>
-                  )}
-                </TableCell>
-                <TableCell className="text-right">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-destructive"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      setDeleteTarget(c)
-                      setDeleteOpen(true)
-                    }}
-                  >
-                    删除
-                  </Button>
-                </TableCell>
-              </TableRow>
+            <TableRow
+            key={c.id}
+            className={`cursor-pointer ${selected.includes(c.id) ? "bg-primary/5" : ""}`}
+            onClick={() => navigate(`/certificates/${c.id}`)}
+            >
+            <TableCell className="w-10" onClick={(e) => e.stopPropagation()}>
+            <input
+            type="checkbox"
+            className="size-4 accent-primary"
+            checked={selected.includes(c.id)}
+            onChange={() => toggleSelect(c.id)}
+            />
+            </TableCell>
+            <TableCell className="font-medium">
+            {c.primary_domain}
+            {c.domains.length > 1 && (
+            <span className="ml-1 text-xs text-muted-foreground">+{c.domains.length - 1}</span>
+            )}
+            </TableCell>
+            <TableCell>
+            <CertStatusBadge status={c.status} />
+            </TableCell>
+            <TableCell className="text-muted-foreground">{c.provider === "import" ? "导入" : c.provider}</TableCell>
+            <TableCell>{c.not_before ? new Date(c.not_before).toLocaleDateString() : "-"}</TableCell>
+            <TableCell className={c.days_to_expire < 30 && c.status === "valid" ? "text-amber-600 font-medium" : ""}>
+            {c.not_after ? new Date(c.not_after).toLocaleDateString() : "-"}
+            {c.days_to_expire > 0 && c.status !== "revoked" && c.status !== "expired" && (
+            <span className="ml-1 text-xs text-muted-foreground">({c.days_to_expire}天)</span>
+            )}
+            </TableCell>
+            <TableCell className="text-right">
+            <Button
+            variant="ghost"
+            size="sm"
+            className="text-destructive"
+            onClick={(e) => {
+            e.stopPropagation()
+            setDeleteTarget(c)
+            setDeleteOpen(true)
+            }}
+            >
+            删除
+            </Button>
+            </TableCell>
+            </TableRow>
             ))}
-          </TableBody>
-        </Table>
+            </TableBody>
+          </Table>
+        </div>
       </CardContent>
       <Dialog open={deployOpen} onOpenChange={setDeployOpen}>
         <DialogContent>

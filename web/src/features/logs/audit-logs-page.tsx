@@ -23,6 +23,9 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { api, getErrorMessageAsync, type Page } from "@/lib/api"
+import { RefreshButton } from "@/components/refresh-button"
+import { TableRefreshOverlay } from "@/components/table-refresh-overlay"
+import { useTableRefresh } from "@/hooks/use-table-refresh"
 
 interface AuditLog {
   id: string
@@ -100,7 +103,7 @@ export function AuditLogsPage() {
   const [applied, setApplied] = useState({ username: "", keyword: "", group: "all" })
   const [page, setPage] = useState(0)
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isFetching, refetch } = useQuery({
     queryKey: ["audit-logs", applied, page],
     queryFn: async () => {
       const params = new URLSearchParams({ limit: String(PAGE_SIZE), offset: String(page * PAGE_SIZE) })
@@ -111,6 +114,7 @@ export function AuditLogsPage() {
       return res.data
     },
   })
+  const { refreshing, refresh } = useTableRefresh(refetch)
   const logs = data?.items
 
   const search = () => {
@@ -153,6 +157,7 @@ export function AuditLogsPage() {
     <Card className="flex-1">
       <CardHeader className="flex flex-row items-center justify-between space-y-0">
         <CardTitle>审计日志</CardTitle>
+        <RefreshButton fetching={isFetching} onClick={refresh} />
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex flex-wrap items-end gap-3">
@@ -206,49 +211,52 @@ export function AuditLogsPage() {
           </div>
         </div>
 
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-40">时间</TableHead>
-              <TableHead className="w-28">用户</TableHead>
-              <TableHead className="w-36">动作</TableHead>
-              <TableHead className="w-48">资源</TableHead>
-              <TableHead>详情</TableHead>
-              <TableHead className="w-32">IP</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {isLoading && (
+        <div className="relative">
+          <TableRefreshOverlay active={refreshing} />
+          <Table>
+            <TableHeader>
               <TableRow>
-                <TableCell colSpan={6} className="text-center text-muted-foreground">加载中...</TableCell>
+                <TableHead className="w-40">时间</TableHead>
+                <TableHead className="w-28">用户</TableHead>
+                <TableHead className="w-36">动作</TableHead>
+                <TableHead className="w-48">资源</TableHead>
+                <TableHead>详情</TableHead>
+                <TableHead className="w-32">IP</TableHead>
               </TableRow>
-            )}
-            {!isLoading && (!logs || logs.length === 0) && (
-              <TableRow>
-                <TableCell colSpan={6} className="text-center text-muted-foreground py-10">
-                  <History className="mx-auto mb-2 size-8 opacity-50" />
-                  暂无审计日志
-                </TableCell>
-              </TableRow>
-            )}
-            {logs?.map((l) => (
-              <TableRow key={l.id}>
-                <TableCell className="whitespace-nowrap text-muted-foreground">{formatTime(l.created_at)}</TableCell>
-                <TableCell className="font-medium">{l.username}</TableCell>
-                <TableCell>
-                  <Badge variant={l.action === "notify.failed" || l.action === "deploy.failed" ? "destructive" : "outline"}>
-                    {actionNames[l.action] ?? l.action}
-                  </Badge>
-                </TableCell>
-                <TableCell className="max-w-48 truncate">{l.resource || "-"}</TableCell>
-                <TableCell className="max-w-md truncate text-muted-foreground" title={l.detail}>
-                  {l.detail || "-"}
-                </TableCell>
-                <TableCell className="text-muted-foreground">{l.ip || "-"}</TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {isLoading && (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center text-muted-foreground">加载中...</TableCell>
+                </TableRow>
+              )}
+              {!isLoading && (!logs || logs.length === 0) && (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center text-muted-foreground py-10">
+                    <History className="mx-auto mb-2 size-8 opacity-50" />
+                    暂无审计日志
+                  </TableCell>
+                </TableRow>
+              )}
+              {logs?.map((l) => (
+                <TableRow key={l.id}>
+                  <TableCell className="whitespace-nowrap text-muted-foreground">{formatTime(l.created_at)}</TableCell>
+                  <TableCell className="font-medium">{l.username}</TableCell>
+                  <TableCell>
+                    <Badge variant={l.action === "notify.failed" || l.action === "deploy.failed" ? "destructive" : "outline"}>
+                      {actionNames[l.action] ?? l.action}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="max-w-48 truncate">{l.resource || "-"}</TableCell>
+                  <TableCell className="max-w-md truncate text-muted-foreground" title={l.detail}>
+                    {l.detail || "-"}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">{l.ip || "-"}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
 
         <div className="flex items-center justify-between">
           <span className="text-sm text-muted-foreground">

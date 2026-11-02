@@ -28,6 +28,9 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { api, getErrorMessageAsync, type Page } from "@/lib/api"
+import { RefreshButton } from "@/components/refresh-button"
+import { TableRefreshOverlay } from "@/components/table-refresh-overlay"
+import { useTableRefresh } from "@/hooks/use-table-refresh"
 
 interface ScanSummary {
   scanned: number
@@ -91,7 +94,7 @@ export function TaskLogsPage() {
   const limit = 20
   const [detailLog, setDetailLog] = useState<TaskLog | null>(null)
 
-  const { data } = useQuery({
+  const { data, isFetching, refetch } = useQuery({
     queryKey: ["task-logs", page],
     queryFn: async () => {
       const res = await api.get<Page<TaskLog>>(`/task-logs?limit=${limit}&offset=${page * limit}`)
@@ -99,6 +102,7 @@ export function TaskLogsPage() {
     },
     refetchInterval: 5000,
   })
+  const { refreshing, refresh } = useTableRefresh(refetch)
   const logs = data?.items ?? []
   const total = data?.total ?? 0
   const filtered = logs.filter((l) => {
@@ -128,6 +132,7 @@ export function TaskLogsPage() {
       <CardHeader className="flex flex-row items-center justify-between space-y-0">
         <CardTitle>任务日志</CardTitle>
         <div className="flex gap-2 items-center">
+          <RefreshButton fetching={isFetching} onClick={refresh} />
           <Select value={typeFilter} onValueChange={(v) => setTypeFilter(v ?? "all")}>
             <SelectTrigger className="w-36"><SelectValue placeholder="类型" /></SelectTrigger>
             <SelectContent>
@@ -153,54 +158,57 @@ export function TaskLogsPage() {
         </div>
       </CardHeader>
       <CardContent>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>任务</TableHead>
-              <TableHead>状态</TableHead>
-              <TableHead>摘要/详情</TableHead>
-              <TableHead>开始时间</TableHead>
-              <TableHead>完成时间</TableHead>
-              <TableHead className="text-right">操作</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {!filtered || filtered.length === 0 ? (
+        <div className="relative">
+          <TableRefreshOverlay active={refreshing} />
+          <Table>
+            <TableHeader>
               <TableRow>
-                <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
-                  暂无任务记录（调度器将周期性运行）
-                </TableCell>
+                <TableHead>任务</TableHead>
+                <TableHead>状态</TableHead>
+                <TableHead>摘要/详情</TableHead>
+                <TableHead>开始时间</TableHead>
+                <TableHead>完成时间</TableHead>
+                <TableHead className="text-right">操作</TableHead>
               </TableRow>
-            ) : (
-              filtered.map((l) => (
-                <TableRow key={l.id} className="cursor-pointer" onClick={() => setDetailLog(l)}>
-                  <TableCell className="font-medium">{typeNames[l.type] ?? l.type}</TableCell>
-                  <TableCell>
-                    {l.status === "success" ? (
-                      <Badge variant="outline" className="bg-green-500/15 text-green-600 dark:text-green-400">成功</Badge>
-                    ) : l.status === "failed" ? (
-                      <Badge variant="outline" className="bg-red-500/15 text-red-600 dark:text-red-400">失败</Badge>
-                    ) : (
-                      <Badge variant="outline" className="bg-blue-500/15 text-blue-600 dark:text-blue-400">运行中</Badge>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground max-w-[420px] truncate" title={l.detail || l.summary || ""}>
-                    {summaryBadge(l)}
-                  </TableCell>
-                  <TableCell>{new Date(l.started_at).toLocaleString()}</TableCell>
-                  <TableCell>
-                    {l.finished_at ? new Date(l.finished_at).toLocaleString() : "-"}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); setDetailLog(l) }}>
-                      <Eye className="mr-1 size-4" />详情
-                    </Button>
+            </TableHeader>
+            <TableBody>
+              {!filtered || filtered.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                    暂无任务记录（调度器将周期性运行）
                   </TableCell>
                 </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
+              ) : (
+                filtered.map((l) => (
+                  <TableRow key={l.id} className="cursor-pointer" onClick={() => setDetailLog(l)}>
+                    <TableCell className="font-medium">{typeNames[l.type] ?? l.type}</TableCell>
+                    <TableCell>
+                      {l.status === "success" ? (
+                        <Badge variant="outline" className="bg-green-500/15 text-green-600 dark:text-green-400">成功</Badge>
+                      ) : l.status === "failed" ? (
+                        <Badge variant="outline" className="bg-red-500/15 text-red-600 dark:text-red-400">失败</Badge>
+                      ) : (
+                        <Badge variant="outline" className="bg-blue-500/15 text-blue-600 dark:text-blue-400">运行中</Badge>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground max-w-[420px] truncate" title={l.detail || l.summary || ""}>
+                      {summaryBadge(l)}
+                    </TableCell>
+                    <TableCell>{new Date(l.started_at).toLocaleString()}</TableCell>
+                    <TableCell>
+                      {l.finished_at ? new Date(l.finished_at).toLocaleString() : "-"}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); setDetailLog(l) }}>
+                        <Eye className="mr-1 size-4" />详情
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </div>
         {total > limit && (
           <div className="flex justify-between items-center mt-4 text-sm text-muted-foreground">
             <span>共 {total} 条</span>

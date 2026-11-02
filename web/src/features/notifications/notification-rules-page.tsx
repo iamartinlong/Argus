@@ -34,6 +34,9 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { api, getErrorMessage } from "@/lib/api"
+import { RefreshButton } from "@/components/refresh-button"
+import { TableRefreshOverlay } from "@/components/table-refresh-overlay"
+import { useTableRefresh } from "@/hooks/use-table-refresh"
 import { NOTIFICATION_EVENTS } from "@/lib/types"
 
 interface NotificationRule {
@@ -101,13 +104,14 @@ export function NotificationRulesPage() {
   const [templateOpen, setTemplateOpen] = useState(false)
   const [templates, setTemplates] = useState<Record<string, { title: string; body: string }>>({})
 
-  const { data: rules, isLoading } = useQuery({
+  const { data: rules, isLoading, isFetching, refetch } = useQuery({
     queryKey: ["notification-rules"],
     queryFn: async () => {
       const res = await api.get<NotificationRule[]>("/notification-rules")
       return res.data
     },
   })
+  const { refreshing, refresh } = useTableRefresh(refetch)
 
   const { data: channels } = useQuery({
     queryKey: ["notification-channels"],
@@ -233,6 +237,7 @@ export function NotificationRulesPage() {
       <CardHeader className="flex flex-row items-center justify-between space-y-0">
         <CardTitle>通知规则</CardTitle>
         <div className="flex gap-2">
+          <RefreshButton fetching={isFetching} onClick={refresh} />
           <Button variant="outline" onClick={openTemplates}>
             <Settings2 className="mr-2 size-4" />
             模板设置
@@ -244,78 +249,81 @@ export function NotificationRulesPage() {
         </div>
       </CardHeader>
       <CardContent>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>名称</TableHead>
-              <TableHead>事件</TableHead>
-              <TableHead>渠道</TableHead>
-              <TableHead>提前天数</TableHead>
-              <TableHead>状态</TableHead>
-              <TableHead className="text-right">操作</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {isLoading && (
+        <div className="relative">
+          <TableRefreshOverlay active={refreshing} />
+          <Table>
+            <TableHeader>
               <TableRow>
-                <TableCell colSpan={6} className="text-center text-muted-foreground">加载中...</TableCell>
+                <TableHead>名称</TableHead>
+                <TableHead>事件</TableHead>
+                <TableHead>渠道</TableHead>
+                <TableHead>提前天数</TableHead>
+                <TableHead>状态</TableHead>
+                <TableHead className="text-right">操作</TableHead>
               </TableRow>
-            )}
-            {!isLoading && (!rules || rules.length === 0) && (
-              <TableRow>
-                <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
-                  <BellRing className="mx-auto mb-2 size-8 opacity-50" />
-                  暂无通知规则，创建后系统将按规则推送通知
-                </TableCell>
-              </TableRow>
-            )}
-            {rules?.map((r) => (
-              <TableRow key={r.id}>
-                <TableCell className="font-medium">{r.name}</TableCell>
-                <TableCell>{eventNames[r.event] ?? r.event}</TableCell>
-                <TableCell>
-                  <div className="flex gap-1 flex-wrap">
-                    {(r.channel_ids ?? []).length > 0
-                      ? (r.channel_ids ?? []).map((id) => (
-                          <Badge key={id} variant="outline">{channelNameById(id)}</Badge>
-                        ))
-                      : (r.channels ?? []).map((c) => (
-                          <Badge key={c} variant="outline">{channelTypeNames[c] ?? c}</Badge>
-                        ))}
-                  </div>
-                </TableCell>
-                <TableCell>
-                  {(r.days_before ?? []).length > 0 ? (r.days_before ?? []).join(" / ") + " 天" : "-"}
-                </TableCell>
-                <TableCell>
-                  {r.enabled ? (
-                    <Badge variant="outline" className="bg-green-500/15 text-green-600 dark:text-green-400">启用</Badge>
-                  ) : (
-                    <Badge variant="outline" className="bg-zinc-500/15 text-zinc-600 dark:text-zinc-400">停用</Badge>
-                  )}
-                </TableCell>
-                <TableCell className="text-right">
-                  <div className="flex justify-end gap-1">
-                    <Button variant="ghost" size="sm" onClick={() => openEdit(r)}>
-                      <Pencil className="size-4" />
-                      编辑
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-destructive"
-                      onClick={() => {
-                        if (confirm(`确认删除规则 ${r.name}？`)) remove.mutate(r.id)
-                      }}
-                    >
-                      <Trash2 className="size-4" />
-                    </Button>
-                  </div>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {isLoading && (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center text-muted-foreground">加载中...</TableCell>
+                </TableRow>
+              )}
+              {!isLoading && (!rules || rules.length === 0) && (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                    <BellRing className="mx-auto mb-2 size-8 opacity-50" />
+                    暂无通知规则，创建后系统将按规则推送通知
+                  </TableCell>
+                </TableRow>
+              )}
+              {rules?.map((r) => (
+                <TableRow key={r.id}>
+                  <TableCell className="font-medium">{r.name}</TableCell>
+                  <TableCell>{eventNames[r.event] ?? r.event}</TableCell>
+                  <TableCell>
+                    <div className="flex gap-1 flex-wrap">
+                      {(r.channel_ids ?? []).length > 0
+                        ? (r.channel_ids ?? []).map((id) => (
+                            <Badge key={id} variant="outline">{channelNameById(id)}</Badge>
+                          ))
+                        : (r.channels ?? []).map((c) => (
+                            <Badge key={c} variant="outline">{channelTypeNames[c] ?? c}</Badge>
+                          ))}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    {(r.days_before ?? []).length > 0 ? (r.days_before ?? []).join(" / ") + " 天" : "-"}
+                  </TableCell>
+                  <TableCell>
+                    {r.enabled ? (
+                      <Badge variant="outline" className="bg-green-500/15 text-green-600 dark:text-green-400">启用</Badge>
+                    ) : (
+                      <Badge variant="outline" className="bg-zinc-500/15 text-zinc-600 dark:text-zinc-400">停用</Badge>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex justify-end gap-1">
+                      <Button variant="ghost" size="sm" onClick={() => openEdit(r)}>
+                        <Pencil className="size-4" />
+                        编辑
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-destructive"
+                        onClick={() => {
+                          if (confirm(`确认删除规则 ${r.name}？`)) remove.mutate(r.id)
+                        }}
+                      >
+                        <Trash2 className="size-4" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
       </CardContent>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

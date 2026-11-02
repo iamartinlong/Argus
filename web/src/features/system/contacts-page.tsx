@@ -26,6 +26,9 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { api, getErrorMessage } from "@/lib/api"
+import { RefreshButton } from "@/components/refresh-button"
+import { TableRefreshOverlay } from "@/components/table-refresh-overlay"
+import { useTableRefresh } from "@/hooks/use-table-refresh"
 import type { ContactPerson } from "@/lib/types"
 
 const contactSchema = z.object({
@@ -41,13 +44,14 @@ export function ContactsPage() {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editing, setEditing] = useState<ContactPerson | null>(null)
 
-  const { data: contacts, isLoading, error } = useQuery({
+  const { data: contacts, isLoading, error, isFetching, refetch } = useQuery({
     queryKey: ["contacts"],
     queryFn: async () => {
       const res = await api.get<ContactPerson[]>("/settings/contacts")
       return res.data
     },
   })
+  const { refreshing, refresh } = useTableRefresh(refetch)
 
   const {
     register,
@@ -102,69 +106,75 @@ export function ContactsPage() {
     <Card className="flex-1">
       <CardHeader className="flex flex-row items-center justify-between space-y-0">
         <CardTitle>申请人信息</CardTitle>
-        <Button onClick={openCreate}>
-          <Plus className="mr-2 size-4" />
-          新增申请人
-        </Button>
+        <div className="flex gap-2">
+          <RefreshButton fetching={isFetching} onClick={refresh} />
+          <Button onClick={openCreate}>
+            <Plus className="mr-2 size-4" />
+            新增申请人
+          </Button>
+        </div>
       </CardHeader>
       <CardContent>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>姓名</TableHead>
-              <TableHead>邮箱</TableHead>
-              <TableHead>电话</TableHead>
-              <TableHead>创建时间</TableHead>
-              <TableHead className="text-right">操作</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {isLoading && (
+        <div className="relative">
+          <TableRefreshOverlay active={refreshing} />
+          <Table>
+            <TableHeader>
               <TableRow>
-                <TableCell colSpan={5} className="text-center text-muted-foreground">加载中...</TableCell>
+                <TableHead>姓名</TableHead>
+                <TableHead>邮箱</TableHead>
+                <TableHead>电话</TableHead>
+                <TableHead>创建时间</TableHead>
+                <TableHead className="text-right">操作</TableHead>
               </TableRow>
-            )}
-            {error && (
-              <TableRow>
-                <TableCell colSpan={5} className="text-center text-destructive py-8">
-                  加载失败：{getErrorMessage(error)}
-                </TableCell>
-              </TableRow>
-            )}
-            {!isLoading && !error && (!contacts || contacts.length === 0) && (
-              <TableRow>
-                <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
-                  <ContactRound className="mx-auto mb-2 size-8 opacity-50" />
-                  暂无申请人，点击"新增申请人"添加
-                </TableCell>
-              </TableRow>
-            )}
-            {contacts?.map((c) => (
-              <TableRow key={c.id}>
-                <TableCell className="font-medium">{c.name}</TableCell>
-                <TableCell>{c.email}</TableCell>
-                <TableCell>{c.phone}</TableCell>
-                <TableCell className="text-muted-foreground">{new Date(c.created_at).toLocaleDateString()}</TableCell>
-                <TableCell className="text-right space-x-1">
-                  <Button variant="outline" size="sm" onClick={() => openEdit(c)}>
-                    <Pencil className="mr-1 size-4" />
-                    编辑
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-destructive"
-                    onClick={() => {
-                      if (confirm(`确认删除申请人 ${c.name}？`)) remove.mutate(c.id)
-                    }}
-                  >
-                    <Trash2 className="size-4" />
-                  </Button>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {isLoading && (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center text-muted-foreground">加载中...</TableCell>
+                </TableRow>
+              )}
+              {error && (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center text-destructive py-8">
+                    加载失败：{getErrorMessage(error)}
+                  </TableCell>
+                </TableRow>
+              )}
+              {!isLoading && !error && (!contacts || contacts.length === 0) && (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                    <ContactRound className="mx-auto mb-2 size-8 opacity-50" />
+                    暂无申请人，点击"新增申请人"添加
+                  </TableCell>
+                </TableRow>
+              )}
+              {contacts?.map((c) => (
+                <TableRow key={c.id}>
+                  <TableCell className="font-medium">{c.name}</TableCell>
+                  <TableCell>{c.email}</TableCell>
+                  <TableCell>{c.phone}</TableCell>
+                  <TableCell className="text-muted-foreground">{new Date(c.created_at).toLocaleDateString()}</TableCell>
+                  <TableCell className="text-right space-x-1">
+                    <Button variant="outline" size="sm" onClick={() => openEdit(c)}>
+                      <Pencil className="mr-1 size-4" />
+                      编辑
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-destructive"
+                      onClick={() => {
+                        if (confirm(`确认删除申请人 ${c.name}？`)) remove.mutate(c.id)
+                      }}
+                    >
+                      <Trash2 className="size-4" />
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
         <p className="mt-4 text-xs text-muted-foreground">
           用于阿里云 / 腾讯云证书签发（申请人信息），签发时可选择具体联系人；ACME 渠道无需配置。
         </p>

@@ -1,4 +1,4 @@
-﻿import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useState } from "react"
 import { useForm, type UseFormReturn } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -34,6 +34,9 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { api, getErrorMessage } from "@/lib/api"
+import { RefreshButton } from "@/components/refresh-button"
+import { TableRefreshOverlay } from "@/components/table-refresh-overlay"
+import { useTableRefresh } from "@/hooks/use-table-refresh"
 
 interface DeployTarget {
   id: string
@@ -602,13 +605,14 @@ export function DeployTargetsPage() {
     url: "",
   }
 
-  const { data: targets, isLoading } = useQuery({
+  const { data: targets, isLoading, isFetching, refetch } = useQuery({
     queryKey: ["deploy-targets"],
     queryFn: async () => {
       const res = await api.get<DeployTarget[]>("/deploy-targets")
       return res.data
     },
   })
+  const { refreshing, refresh } = useTableRefresh(refetch)
 
   const { data: agents } = useQuery({
     queryKey: ["agents"],
@@ -747,75 +751,81 @@ export function DeployTargetsPage() {
     <Card className="flex-1">
       <CardHeader className="flex flex-row items-center justify-between space-y-0">
         <CardTitle>部署目标</CardTitle>
-        <Button onClick={openCreateDialog}>
-          <Plus className="mr-2 size-4" />
-          新建目标
-        </Button>
+        <div className="flex gap-2">
+          <RefreshButton fetching={isFetching} onClick={refresh} />
+          <Button onClick={openCreateDialog}>
+            <Plus className="mr-2 size-4" />
+            新建目标
+          </Button>
+        </div>
       </CardHeader>
       <CardContent>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>名称</TableHead>
-              <TableHead>类型</TableHead>
-              <TableHead>状态</TableHead>
-              <TableHead>创建时间</TableHead>
-              <TableHead className="text-right">操作</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {isLoading && (
+        <div className="relative">
+          <TableRefreshOverlay active={refreshing} />
+          <Table>
+            <TableHeader>
               <TableRow>
-                <TableCell colSpan={5} className="text-center text-muted-foreground">加载中...</TableCell>
+                <TableHead>名称</TableHead>
+                <TableHead>类型</TableHead>
+                <TableHead>状态</TableHead>
+                <TableHead>创建时间</TableHead>
+                <TableHead className="text-right">操作</TableHead>
               </TableRow>
-            )}
-            {!isLoading && (!targets || targets.length === 0) && (
-              <TableRow>
-                <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
-                  <Server className="mx-auto mb-2 size-8 opacity-50" />
-                  暂无部署目标，创建后证书签发/续期可自动推送
-                </TableCell>
-              </TableRow>
-            )}
-            {targets?.map((t) => (
-              <TableRow key={t.id}>
-                <TableCell className="font-medium">{t.name}</TableCell>
-                <TableCell>{typeNames[t.type] ?? t.type}</TableCell>
-                <TableCell>
-                  {t.last_status === "success" ? (
-                    <Badge variant="outline" className="bg-green-500/15 text-green-600 dark:text-green-400">正常</Badge>
-                  ) : t.last_status === "error" ? (
-                    <Badge variant="outline" className="bg-red-500/15 text-red-600 dark:text-red-400" title={t.last_error}>错误</Badge>
-                  ) : (
-                    <span className="text-muted-foreground">未测试</span>
-                  )}
-                </TableCell>
-                <TableCell>{new Date(t.created_at).toLocaleDateString()}</TableCell>
-                <TableCell className="text-right space-x-1">
-                  <Button variant="outline" size="sm" onClick={() => openEdit(t)}>
-                    <Eye className="mr-1 size-4" />
-                    编辑
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={() => test.mutate(t.id)} disabled={test.isPending}>
-                    <PlayCircle className="mr-1 size-4" />
-                    测试
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-destructive"
-                    onClick={() => {
-                      setDeleteTarget(t)
-                      setDeleteOpen(true)
-                    }}
-                  >
-                    <Trash2 className="size-4" />
-                  </Button>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {isLoading && (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center text-muted-foreground">加载中...</TableCell>
+                </TableRow>
+              )}
+              {!isLoading && (!targets || targets.length === 0) && (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                    <Server className="mx-auto mb-2 size-8 opacity-50" />
+                    暂无部署目标，创建后证书签发/续期可自动推送
+                  </TableCell>
+                </TableRow>
+              )}
+              {targets?.map((t) => (
+                <TableRow key={t.id}>
+                  <TableCell className="font-medium">{t.name}</TableCell>
+                  <TableCell>{typeNames[t.type] ?? t.type}</TableCell>
+                  <TableCell>
+                    {t.last_status === "success" ? (
+                      <Badge variant="outline" className="bg-green-500/15 text-green-600 dark:text-green-400">正常</Badge>
+                    ) : t.last_status === "error" ? (
+                      <Badge variant="outline" className="bg-red-500/15 text-red-600 dark:text-red-400" title={t.last_error}>错误</Badge>
+                    ) : (
+                      <span className="text-muted-foreground">未测试</span>
+                    )}
+                  </TableCell>
+                  <TableCell>{new Date(t.created_at).toLocaleDateString()}</TableCell>
+                  <TableCell className="text-right space-x-1">
+                    <Button variant="outline" size="sm" onClick={() => openEdit(t)}>
+                      <Eye className="mr-1 size-4" />
+                      编辑
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => test.mutate(t.id)} disabled={test.isPending}>
+                      <PlayCircle className="mr-1 size-4" />
+                      测试
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-destructive"
+                      onClick={() => {
+                        setDeleteTarget(t)
+                        setDeleteOpen(true)
+                      }}
+                    >
+                      <Trash2 className="size-4" />
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
       </CardContent>
 
       <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (open) resetCreate(CREATE_DEFAULT); else resetCreate(CREATE_DEFAULT) }}>

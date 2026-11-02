@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest"
-import { render, screen, waitFor } from "@testing-library/react"
+import { act, render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { MemoryRouter } from "react-router-dom"
@@ -104,5 +104,53 @@ describe("批量续期排除导入证书", () => {
     await user.click(await screen.findByRole("button", { name: /批量续期/ }))
     expect(toastMock.error).toHaveBeenCalledWith("所选证书均为导入证书，无法续期")
     expect(apiMock.post).not.toHaveBeenCalled()
+  })
+
+  it("点击刷新按钮重新请求证书列表", async () => {
+    const user = userEvent.setup()
+    apiMock.get.mockImplementation(async (url: string) => {
+      if (url === "/certificates") return { data: [certFixture("c-1", "a.example.com", "acme")] }
+      if (url === "/deploy-targets") return { data: [] }
+      return { data: [] }
+    })
+
+    renderPage()
+    await screen.findByText("a.example.com")
+    const before = apiMock.get.mock.calls.filter(([u]) => u === "/certificates").length
+    expect(before).toBeGreaterThan(0)
+
+    await user.click(screen.getByRole("button", { name: "刷新" }))
+    await waitFor(() =>
+      expect(apiMock.get.mock.calls.filter(([u]) => u === "/certificates").length).toBeGreaterThan(before),
+    )
+  })
+
+  it("手动刷新时表格显示「刷新中」遮罩，完成后消失", async () => {
+    const user = userEvent.setup()
+    let certCalls = 0
+    let releaseSecond: () => void = () => {}
+    apiMock.get.mockImplementation((url: string) => {
+      if (url !== "/certificates") return Promise.resolve({ data: [] })
+      certCalls += 1
+      const payload = { data: [certFixture("c-1", "a.example.com", "acme")] }
+      if (certCalls === 1) return Promise.resolve(payload)
+      // 第二次（手动刷新）挂起，用于观察遮罩态
+      return new Promise((resolve) => {
+        releaseSecond = () => resolve(payload)
+      })
+    })
+
+    renderPage()
+    await screen.findByText("a.example.com")
+    expect(screen.queryByRole("status")).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole("button", { name: "刷新" }))
+    expect(await screen.findByRole("status")).toHaveTextContent("刷新中")
+
+    await act(async () => {
+      releaseSecond()
+      await Promise.resolve()
+    })
+    await waitFor(() => expect(screen.queryByRole("status")).not.toBeInTheDocument())
   })
 })

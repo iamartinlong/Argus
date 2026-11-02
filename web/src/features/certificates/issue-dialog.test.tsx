@@ -12,7 +12,8 @@ const apiMock = api as unknown as {
 
 vi.mock("@/lib/api", () => ({
   api: { get: vi.fn(), post: vi.fn(), put: vi.fn(), delete: vi.fn() },
-  getErrorMessage: vi.fn(() => "请求失败"),
+  // 透传真实错误消息，使内联 Alert 的文案断言有效（而非 mock 常量）
+  getErrorMessage: vi.fn((e: unknown) => (e as { message?: string })?.message ?? "请求失败"),
 }))
 
 vi.mock("sonner", () => ({
@@ -190,5 +191,55 @@ describe("IssueDialog CSR 模式与表单逻辑", () => {
     const [, body] = apiMock.post.mock.calls.at(-1) ?? []
     expect(body.notify_events).not.toContain("issue_success")
     expect(body.notify_events).toContain("issue_failed")
+  })
+
+  it("关闭再打开后，表单内容被清空（不残留上次域名）", async () => {
+    const user = userEvent.setup()
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const tree = (open: boolean) => (
+      <QueryClientProvider client={queryClient}>
+        <IssueDialog open={open} onOpenChange={() => {}} />
+      </QueryClientProvider>
+    )
+    const { rerender } = render(tree(true))
+    await screen.findByText("签发证书")
+
+    await selectAccount(user, /Let's Encrypt/)
+    const input = screen.getByPlaceholderText("example.com, www.example.com") as HTMLInputElement
+    await user.type(input, "example.com")
+    expect(input.value).toBe("example.com")
+
+    rerender(tree(false))
+    rerender(tree(true))
+    await waitFor(() =>
+      expect(
+        (screen.getByPlaceholderText("example.com, www.example.com") as HTMLInputElement).value,
+      ).toBe(""),
+    )
+    // 渠道账户选择也被重置：直接提交会触发“请选择渠道账户”校验
+    await user.click(screen.getByRole("button", { name: "签发" }))
+    expect(await screen.findByText("请选择渠道账户")).toBeInTheDocument()
+    expect(apiMock.post).not.toHaveBeenCalled()
+  })
+
+  it("签发失败时显示内联 Alert 且 toast 仅简短提醒", async () => {
+    const user = userEvent.setup()
+    apiMock.post.mockRejectedValue(new Error("DNS 验证失败：TXT 记录未生效"))
+    renderDialog()
+    await screen.findByText("签发证书")
+
+    await selectAccount(user, /Let's Encrypt/)
+    await user.type(
+      screen.getByPlaceholderText("example.com, www.example.com"),
+      "example.com",
+    )
+    await user.click(screen.getByRole("button", { name: "签发" }))
+
+    // 内联 Alert：常驻显示服务端返回的详细错误，不会被自动消失漏看
+    const alert = await screen.findByRole("alert")
+    expect(alert).toHaveTextContent("签发失败")
+    expect(alert).toHaveTextContent("DNS 验证失败：TXT 记录未生效")
+    const { toast: toastMock } = await import("sonner")
+    expect(toastMock.error).toHaveBeenCalledWith("签发失败")
   })
 })

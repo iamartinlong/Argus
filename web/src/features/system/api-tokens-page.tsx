@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
@@ -27,6 +27,9 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { api, getErrorMessage } from "@/lib/api"
+import { RefreshButton } from "@/components/refresh-button"
+import { TableRefreshOverlay } from "@/components/table-refresh-overlay"
+import { useTableRefresh } from "@/hooks/use-table-refresh"
 
 interface ApiToken {
   id: string
@@ -74,17 +77,19 @@ export function ApiTokensPage() {
   const [createdToken, setCreatedToken] = useState<string | null>(null)
   const [selectedScopes, setSelectedScopes] = useState<string[]>(["all"])
 
-  const { data: tokens } = useQuery({
+  const { data: tokens, isFetching: tokensFetching, refetch: refetchTokens } = useQuery({
     queryKey: ["api-tokens"],
     queryFn: async () => {
       const res = await api.get<ApiToken[]>("/api-tokens")
       return res.data
     },
   })
+  const { refreshing, refresh } = useTableRefresh(refetchTokens)
 
   const {
     register,
     handleSubmit,
+    reset,
     formState: { errors },
   } = useForm<TokenForm>({ resolver: zodResolver(tokenSchema) })
 
@@ -106,6 +111,14 @@ export function ApiTokensPage() {
     },
     onError: (err) => toast.error(getErrorMessage(err)),
   })
+
+  // 对话框常驻挂载：打开时重置表单与权限选择，避免上次的 name/ttl 残留
+  useEffect(() => {
+    if (dialogOpen) {
+      reset()
+      setSelectedScopes(["all"])
+    }
+  }, [dialogOpen, reset])
 
   const toggleAll = () => {
     setSelectedScopes(selectedScopes.includes("all") ? [] : ["all"])
@@ -134,72 +147,90 @@ export function ApiTokensPage() {
     <Card className="flex-1">
       <CardHeader className="flex flex-row items-center justify-between space-y-0">
         <CardTitle>API Token</CardTitle>
-        <Button onClick={() => setDialogOpen(true)}>
-          <Plus className="mr-2 size-4" />
-          创建 Token
-        </Button>
+        <div className="flex gap-2">
+          <RefreshButton fetching={tokensFetching} onClick={refresh} />
+          <Button onClick={() => setDialogOpen(true)}>
+            <Plus className="mr-2 size-4" />
+            创建 Token
+          </Button>
+        </div>
       </CardHeader>
       <CardContent>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>名称</TableHead>
-              <TableHead>权限</TableHead>
-              <TableHead>过期时间</TableHead>
-              <TableHead>最后使用</TableHead>
-              <TableHead>创建时间</TableHead>
-              <TableHead className="text-right">操作</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {!tokens || tokens.length === 0 ? (
+        <div className="relative">
+          <TableRefreshOverlay active={refreshing} />
+          <Table>
+            <TableHeader>
               <TableRow>
-                <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
-                  <KeyRound className="mx-auto mb-2 size-8 opacity-50" />
-                  暂无 API Token（用于 CLI 远程模式与脚本集成）
-                </TableCell>
+                <TableHead>名称</TableHead>
+                <TableHead>权限</TableHead>
+                <TableHead>过期时间</TableHead>
+                <TableHead>最后使用</TableHead>
+                <TableHead>创建时间</TableHead>
+                <TableHead className="text-right">操作</TableHead>
               </TableRow>
-            ) : (
-              tokens.map((t) => (
-                <TableRow key={t.id}>
-                  <TableCell className="font-medium">{t.name}</TableCell>
-                  <TableCell>
-                    <div className="flex gap-1 flex-wrap">
-                      {t.scopes.map((s) => (
-                        <Badge key={s} variant="outline">{scopeNames[s] ?? s}</Badge>
-                      ))}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    {t.expires_at ? new Date(t.expires_at).toLocaleDateString() : "永不过期"}
-                  </TableCell>
-                  <TableCell>
-                    {t.last_used_at ? new Date(t.last_used_at).toLocaleString() : "未使用"}
-                  </TableCell>
-                  <TableCell>{new Date(t.created_at).toLocaleDateString()}</TableCell>
-                  <TableCell className="text-right">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-destructive"
-                      onClick={() => {
-                        if (confirm(`确认吊销 Token ${t.name}？吊销后立即失效`)) revoke.mutate(t.id)
-                      }}
-                    >
-                      <Trash2 className="size-4" />
-                    </Button>
+            </TableHeader>
+            <TableBody>
+              {!tokens || tokens.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                    <KeyRound className="mx-auto mb-2 size-8 opacity-50" />
+                    暂无 API Token（用于 CLI 远程模式与脚本集成）
                   </TableCell>
                 </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
+              ) : (
+                tokens.map((t) => (
+                  <TableRow key={t.id}>
+                    <TableCell className="font-medium">{t.name}</TableCell>
+                    <TableCell>
+                      <div className="flex gap-1 flex-wrap">
+                        {t.scopes.map((s) => (
+                          <Badge key={s} variant="outline">{scopeNames[s] ?? s}</Badge>
+                        ))}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      {t.expires_at ? new Date(t.expires_at).toLocaleDateString() : "永不过期"}
+                    </TableCell>
+                    <TableCell>
+                      {t.last_used_at ? new Date(t.last_used_at).toLocaleString() : "未使用"}
+                    </TableCell>
+                    <TableCell>{new Date(t.created_at).toLocaleDateString()}</TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-destructive"
+                        onClick={() => {
+                          if (confirm(`确认吊销 Token ${t.name}？吊销后立即失效`)) revoke.mutate(t.id)
+                        }}
+                      >
+                        <Trash2 className="size-4" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </div>
         <p className="mt-4 text-xs text-muted-foreground">
           使用方式：请求头 <code className="font-mono">X-API-Token: &lt;token&gt;</code>，用于 CLI 远程模式与自动化脚本。
         </p>
       </CardContent>
 
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+      <Dialog
+        open={dialogOpen}
+        onOpenChange={(o) => {
+          // 关闭即清空（覆盖取消按钮/Esc/遮罩/X 所有路径）：
+          // 表单、权限选择，以及"仅显示一次"的 Token（重开不应回显旧 Token）
+          if (!o) {
+            reset()
+            setSelectedScopes(["all"])
+            setCreatedToken(null)
+          }
+          setDialogOpen(o)
+        }}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>创建 API Token</DialogTitle>
