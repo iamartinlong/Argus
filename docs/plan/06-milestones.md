@@ -88,6 +88,7 @@
 | 公开发布与 CI/CD | GitHub 仓库（module 更名 `github.com/iamartinlong/Argus`，全新初始提交）；Actions 5 job（vet/test、Web 构建、跨平台产物、**tag 自动发布 Release**（6 平台 zip + SHA256SUMS + CHANGELOG 条目强制校验）、**文档站 Pages**）；内网 gitea 同步 main+tag 并切换默认分支；About/CHANGELOG/README 下载入口与功能截图 | ✅ |
 | BER 编码 PFX 导入修复（v1.1.1） | 阿里云免费证书 IIS 导出为 BER（ASN.1 不定长），Go 解析器只支持 DER 导致导入失败；新增 `internal/infrastructure/asn1ber`（BER→DER 规范化：不定长/分片拍平/内嵌 ASN.1/PKCS#12 隐式变体）+ `internal/infrastructure/pkcs12fix`（规范化 + RFC 7292 MAC 重算）；`ImportPFX` 解析前自动修复；真实 PFX API 端到端验证 | ✅ |
 | 列表页体验优化（v1.2.0） | ①15 个列表/详情页新增刷新按钮（共享 `RefreshButton`）+ 手动刷新遮罩动效（`TableRefreshOverlay` + `useTableRefresh`：仅包裹主动点击的刷新、最短展示 400ms、轮询页不闪、失败也收遮罩）；②签发/新建类弹窗重开不再残留上次输入（含 DNS 密钥/密码/Token，关闭即清覆盖 Esc/遮罩/X）；③签发/导入失败改为内联 Alert（常驻详细错误）+ 简短 toast；④侧边栏品牌区展示版本号（`GET /api/v1/system/version` 取二进制版本，单一事实源） | ✅ |
+| 域名管理/域名台账 | 域名作为**主数据**独立管理（`domains` 表，迁移 id=19，sqlite+PG 双写）；与证书**不建映射表**——关联 = `certificates.domain_id`（引用）+ `domain_name`（副本），读取时实时计算覆盖状态五态（missing/expiring/expired/covered/monitor，通配符父域覆盖子域）；签发时经 `DomainInput`（base-ui combobox：左输入框自由输入 + 右按钮弹台账多选 + chips）从台账选择，后端按 primary domain 反查落副本；台账页含统计条/覆盖筛选/富化行；域名规范化三处重复实现收敛至 `domain.NormalizeDomain`；顺带修复 import 证书默认配置下收不到到期提醒的缺陷 | ✅ |
 
 ## 路线图（剩余未开发）
 

@@ -269,8 +269,7 @@ func TestNormalizeTags(t *testing.T) {
 
 // TestIssueLinksDomainLedger 签发时按 primary domain 反查台账：
 // 命中 → 落 domain_id 引用 + domain_name 副本；未登记 → 两列留空（覆盖走名称匹配）
-func TestIssueLinksDomainLedger(t *testing.T) {
-	svc, _, _, accounts := newTestCertService(nil)
+func TestIssueLinksDomainLedger(t *testing.T) {	svc, _, _, accounts := newTestCertService(nil)
 	seedAccount(t, accounts, "acme")
 
 	store := newFakeDomainStore()
@@ -303,5 +302,29 @@ func TestIssueLinksDomainLedger(t *testing.T) {
 	}
 	if cert2.DomainID != "" || cert2.DomainName != "" {
 		t.Fatalf("unregistered link = %q/%q, want empty", cert2.DomainID, cert2.DomainName)
+	}
+}
+
+// TestImportLinksDomainLedger 导入证书同样按 primary domain 反查台账落副本
+func TestImportLinksDomainLedger(t *testing.T) {
+	svc, _, _, _ := newTestCertService(nil)
+	store := newFakeDomainStore()
+	if err := store.Create(context.Background(), &domain.Domain{
+		ID: "dom-9", Name: "import.example.com",
+		ExpectedStatus: domain.ExpectedMustHaveCert, Source: domain.DomainSourceManual,
+		CreatedAt:      time.Now(), UpdatedAt: time.Now(),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	svc.SetDomains(store)
+
+	cert, err := svc.Import(context.Background(),
+		[]string{"import.example.com"}, testCertPEM, "-----BEGIN EC PRIVATE KEY-----\nMHQfake\n-----END EC PRIVATE KEY-----",
+		domain.VerifyDNS01, nil)
+	if err != nil {
+		t.Fatalf("import: %v", err)
+	}
+	if cert.DomainID != "dom-9" || cert.DomainName != "import.example.com" {
+		t.Fatalf("import domain link = %q/%q, want dom-9/import.example.com", cert.DomainID, cert.DomainName)
 	}
 }

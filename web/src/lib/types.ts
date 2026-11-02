@@ -10,6 +10,8 @@ export interface Certificate {
   verification: string
   deploy_target_ids: string[]
   notify_events: string[]
+  domain_id: string
+  domain_name: string
   last_error: string
   created_at: string
   updated_at: string
@@ -88,3 +90,35 @@ export const NOTIFICATION_EVENTS: NotificationEventItem[] = [
   { value: "deploy_success", label: "部署成功" },
   { value: "deploy_failed", label: "部署失败" },
 ]
+
+// 域名台账期望状态
+export type DomainExpectedStatus = "must_have_cert" | "monitor_only"
+
+// 域名覆盖状态（后端实时计算）
+export type DomainCoverage = "missing" | "expiring" | "expired" | "covered" | "monitor"
+
+// 域名台账项（创建/更新返回的裸字段）
+export interface Domain {
+  id: string
+  name: string
+  expected_status: DomainExpectedStatus
+  source: string
+  note: string
+  tags: string[]
+  created_at: string
+  updated_at: string
+}
+
+// 台账富化行：Domain 字段 + 覆盖状态与当前证书（列表接口返回）
+export interface DomainLedgerItem extends Domain {
+  coverage: DomainCoverage
+  days_to_expire: number | null
+  cert_count: number
+  current_cert: {
+    id: string
+    primary_domain: string
+    status: string
+    provider: string
+    not_after: string
+  } | null
+}

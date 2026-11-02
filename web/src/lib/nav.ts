@@ -12,6 +12,7 @@ import {
   ContactRoundIcon,
   NetworkIcon,
   LockKeyholeIcon,
+  GlobeIcon,
 } from "lucide-react"
 
 export const nav = [
@@ -42,6 +43,11 @@ export const nav = [
         title: "DNS 验证账户",
         url: "/dns-accounts",
         icon: NetworkIcon,
+      },
+      {
+        title: "域名管理",
+        url: "/domains",
+        icon: GlobeIcon,
       },
     ],
   },

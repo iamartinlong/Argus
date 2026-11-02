@@ -8,6 +8,7 @@ import { CertificatesPage } from "@/features/certificates/certificates-page"
 import { CertificateDetailPage } from "@/features/certificates/certificate-detail-page"
 import { AcmeAccountsPage } from "@/features/acme-accounts/acme-accounts-page"
 import { DnsAccountsPage } from "@/features/dns-accounts/dns-accounts-page"
+import { DomainsPage } from "@/features/domains/domains-page"
 import { NotificationRulesPage } from "@/features/notifications/notification-rules-page"
 import { ChannelsPage } from "@/features/notifications/channels-page"
 import { NotificationHistoryPage } from "@/features/notifications/history-page"
@@ -45,6 +46,7 @@ export const router = createBrowserRouter([
       { path: "certificates/:id", element: <CertificateDetailPage /> },
       { path: "acme-accounts", element: <AcmeAccountsPage /> },
       { path: "dns-accounts", element: <DnsAccountsPage /> },
+      { path: "domains", element: <DomainsPage /> },
       { path: "deploy-targets", element: <DeployTargetsPage /> },
       {
         path: "notification",

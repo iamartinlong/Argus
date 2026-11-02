@@ -484,6 +484,9 @@ func (s *CertificateService) Import(
 	if len(normalized) == 0 {
 		return nil, fmt.Errorf("%w: 至少需要一个域名", domain.ErrInvalidArgument)
 	}
+	// 域名台账关联：与签发同规则——按 primary domain 反查，命中则记录引用与副本
+	// （导入表单无选择器，但台账已登记同名域名时自动关联，数据模型保持一致）
+	domainID, domainName := s.resolveDomainLink(ctx, normalized[0])
 	cert := &domain.Certificate{
 		ID:             newID(),
 		Domains:        normalized,
@@ -495,6 +498,8 @@ func (s *CertificateService) Import(
 		CertificatePEM: certPEM,
 		PrivateKeyEnc:  privEnc,
 		Verification:   verification,
+		DomainID:       domainID,
+		DomainName:     domainName,
 		NotifyEvents:    dedupNotifyEvents(notifyEvents),
 		CreatedAt:       s.clock.Now(),
 		UpdatedAt:      s.clock.Now(),

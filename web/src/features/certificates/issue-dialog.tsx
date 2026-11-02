@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/select"
 import { api, getErrorMessage } from "@/lib/api"
 import { NOTIFICATION_EVENTS, type AcmeAccount, type ContactPerson, type DnsProviderAccount } from "@/lib/types"
+import { DomainInput } from "./domain-input"
 
 const issueSchema = z.object({
   domains: z.string().optional(),
@@ -288,12 +289,14 @@ export function IssueDialog({ open, onOpenChange }: Props) {
             </div>
           ) : (
             <div className="space-y-2">
-              <Label htmlFor="domains">域名（多个用逗号分隔）</Label>
-              <Input
-                id="domains"
-                placeholder="example.com, www.example.com"
-                {...register("domains")}
+              <Label htmlFor="domains">域名</Label>
+              <DomainInput
+                value={watch("domains") ?? ""}
+                onChange={(v) => setValue("domains", v)}
               />
+              <p className="text-xs text-muted-foreground">
+                可直接输入（回车添加，逗号/空格分隔多个），或点右侧按钮从域名台账选择
+              </p>
               {errors.domains && (
                 <p className="text-sm text-destructive">{errors.domains.message}</p>
               )}
