@@ -26,7 +26,7 @@ import {
 } from "@/components/ui/select"
 import { api, getErrorMessage } from "@/lib/api"
 import { NOTIFICATION_EVENTS, type AcmeAccount, type ContactPerson, type DnsProviderAccount } from "@/lib/types"
-import { DomainInput } from "./domain-input"
+import { DomainInput } from "@/components/domain-input"
 
 const issueSchema = z.object({
   domains: z.string().optional(),

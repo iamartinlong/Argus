@@ -34,6 +34,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { api, getErrorMessage } from "@/lib/api"
+import { DomainInput } from "@/components/domain-input"
 import { RefreshButton } from "@/components/refresh-button"
 import { TableRefreshOverlay } from "@/components/table-refresh-overlay"
 import { useTableRefresh } from "@/hooks/use-table-refresh"
@@ -324,8 +325,13 @@ function TargetFields({ type, scene, form, agents }: TargetFieldsProps) {
                   </div>
                   <div className="space-y-2">
                     <Label>主机名（SNI，多站点同端口必填，如 www.example.com）</Label>
-                    <Input placeholder="www.example.com（留空则通配，单站点可用）" {...register("hostname")} />
-                    <p className="text-xs text-muted-foreground">同 IP 同端口多站点需不同主机名并启用 SNI，否则第二站点绑定会失败或主机名为空</p>
+                    <DomainInput
+                      single
+                      value={watch("hostname") ?? ""}
+                      onChange={(v) => setValue("hostname", v)}
+                      placeholder="www.example.com（留空则通配，单站点可用）"
+                    />
+                    <p className="text-xs text-muted-foreground">同 IP 同端口多站点需不同主机名并启用 SNI，否则第二站点绑定会失败或主机名为空；可直接输入或点右侧按钮从域名台账选择</p>
                   </div>
                 </>
               )}
@@ -420,8 +426,13 @@ function TargetFields({ type, scene, form, agents }: TargetFieldsProps) {
                   </div>
                   <div className="space-y-2">
                     <Label>主机名（SNI，多站点同端口必填）</Label>
-                    <Input placeholder="www.example.com（留空通配）" {...register("hostname")} />
-                    <p className="text-xs text-muted-foreground">同 IP 同端口多站点需不同主机名并启用 SNI</p>
+                    <DomainInput
+                      single
+                      value={watch("hostname") ?? ""}
+                      onChange={(v) => setValue("hostname", v)}
+                      placeholder="www.example.com（留空通配）"
+                    />
+                    <p className="text-xs text-muted-foreground">同 IP 同端口多站点需不同主机名并启用 SNI；可直接输入或点右侧按钮从域名台账选择</p>
                   </div>
                 </>
               )}
@@ -506,8 +517,13 @@ function TargetFields({ type, scene, form, agents }: TargetFieldsProps) {
                   </div>
                   <div className="space-y-2">
                     <Label>主机名（SNI，多站点同端口必填）</Label>
-                    <Input placeholder="www.example.com（留空通配）" {...register("hostname")} />
-                    <p className="text-xs text-muted-foreground">同 IP 同端口多站点需不同主机名并启用 SNI</p>
+                    <DomainInput
+                      single
+                      value={watch("hostname") ?? ""}
+                      onChange={(v) => setValue("hostname", v)}
+                      placeholder="www.example.com（留空通配）"
+                    />
+                    <p className="text-xs text-muted-foreground">同 IP 同端口多站点需不同主机名并启用 SNI；可直接输入或点右侧按钮从域名台账选择</p>
                   </div>
                 </>
               )}

@@ -19,7 +19,7 @@ const ledgerFixture = [
 ]
 
 /** 有状态 harness：模拟父表单，验证 chip 渲染与回传 */
-function renderControlled(initial = "") {
+function renderControlled(initial = "", single = false) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   const changes: string[] = []
   function Harness() {
@@ -28,6 +28,7 @@ function renderControlled(initial = "") {
       <QueryClientProvider client={queryClient}>
         <DomainInput
           value={value}
+          single={single}
           onChange={(v) => {
             changes.push(v)
             setValue(v)
@@ -163,5 +164,84 @@ describe("DomainInput", () => {
     await user.keyboard("{Backspace}")
 
     expect(changes.at(-1)).toBe("a.com")
+  })
+})
+
+describe("DomainInput 单域名模式（IIS SNI 主机名）", () => {
+  beforeEach(() => {
+    apiMock.get.mockReset()
+    apiMock.get.mockImplementation(async (url: string) => {
+      if (url === "/domains") return { data: ledgerFixture }
+      return { data: [] }
+    })
+  })
+
+  it("输入框直接展示当前值，不渲染 chip", async () => {
+    renderControlled("www.example.com", true)
+    const input = screen.getByRole("combobox") as HTMLInputElement
+    expect(input.value).toBe("www.example.com")
+    expect(screen.queryByText("www.example.com")).not.toBeInTheDocument()
+  })
+
+  it("输入回车替换为单个域名（取第一个 token）", async () => {
+    const user = userEvent.setup()
+    const { changes } = renderControlled("", true)
+
+    await user.type(screen.getByRole("combobox"), "SNI.Example.com, other.com")
+    await user.keyboard("{Enter}")
+
+    expect(changes.at(-1)).toBe("sni.example.com")
+    expect((screen.getByRole("combobox") as HTMLInputElement).value).toBe("sni.example.com")
+  })
+
+  it("从面板选择即替换（而非累加）", async () => {
+    const user = userEvent.setup()
+    const { changes } = renderControlled("old.example.com", true)
+
+    await user.click(screen.getByRole("button", { name: "从域名台账选择" }))
+    await user.click(await screen.findByText("api.example.com"))
+
+    await waitFor(() => expect(changes.at(-1)).toBe("api.example.com"))
+    expect(changes.filter((c) => c.includes("old.example.com"))).toEqual([])
+  })
+
+  it("面板内输入过滤词后选中：过滤词不顶掉已选主机名", async () => {
+    const user = userEvent.setup()
+    const { changes } = renderControlled("keep.example.com", true)
+
+    await user.click(screen.getByRole("button", { name: "从域名台账选择" }))
+    // 单域名模式输入框预填当前值，先清空再输过滤词
+    await user.clear(screen.getByRole("combobox"))
+    await user.type(screen.getByRole("combobox"), "api")
+    await user.click(await screen.findByText("api.example.com"))
+
+    await waitFor(() => expect(changes.at(-1)).toBe("api.example.com"))
+    expect((screen.getByRole("combobox") as HTMLInputElement).value).toBe("api.example.com")
+  })
+
+  it("Esc 关闭面板后输入框恢复显示已选主机名", async () => {
+    const user = userEvent.setup()
+    const { changes } = renderControlled("keep.example.com", true)
+
+    await user.click(screen.getByRole("button", { name: "从域名台账选择" }))
+    await user.clear(screen.getByRole("combobox"))
+    await user.type(screen.getByRole("combobox"), "api")
+    await user.keyboard("{Escape}")
+
+    await waitFor(() => expect(screen.queryByText("www.example.com")).not.toBeInTheDocument())
+    expect((screen.getByRole("combobox") as HTMLInputElement).value).toBe("keep.example.com")
+    expect(changes).toEqual([])
+  })
+
+  it("清空按钮与 Backspace 均可清空", async () => {
+    const user = userEvent.setup()
+    const { changes } = renderControlled("keep.example.com", true)
+
+    await user.click(screen.getByRole("button", { name: "清空全部域名" }))
+    expect(changes.at(-1)).toBe("")
+
+    await user.click(screen.getByRole("combobox"))
+    await user.keyboard("{Backspace}")
+    expect(changes.at(-1)).toBe("")
   })
 })
