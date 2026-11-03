@@ -9,6 +9,8 @@ import (
 	"github.com/iamartinlong/Argus/internal/mcp"
 )
 
+var mcpScopes []string
+
 var mcpCmd = &cobra.Command{
 	Use:   "mcp",
 	Short: "启动 MCP Server（stdio，供 AI Agent 连接）",
@@ -17,6 +19,7 @@ Cline、Zed、Claude Desktop 等 AI Agent 调用 Argus 的证书管理能力。
 
 本地模式（默认）：
   直连本机数据库，无需网络端口与 token（进程权限即信任，与 CLI 同等模型）。
+  可用 --scopes 收敛工具集（如 --scopes certificates:read 只保留证书只读工具）。
 
 远程模式：
   --server https://cert.example.com --token st_xxx（或环境变量 ARGUS_API_TOKEN），
@@ -25,6 +28,8 @@ Cline、Zed、Claude Desktop 等 AI Agent 调用 Argus 的证书管理能力。
 注意：stdout 是 MCP 协议通道，本命令不向其打印任何日志（诊断信息走 stderr）。
 私钥下载工具默认不注册，需在 config.yaml 配置 mcp.allow_key_download: true。`,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		// 本地模式 scope 收敛（远程模式由服务端强制，此处仅本地模式生效）
+		scopes := mcpScopes
 		// 远程模式：经 REST 代理，无需本地库
 		if remoteEnabled() {
 			token := apiToken()
@@ -35,7 +40,7 @@ Cline、Zed、Claude Desktop 等 AI Agent 调用 Argus 的证书管理能力。
 				BaseURL: remoteServer,
 				Token:   token,
 			})
-			server := mcp.NewServer(ops, version, mcp.Config{})
+			server := mcp.NewServer(ops, version, mcp.Config{Scopes: scopes})
 			log.Printf("Argus %s MCP Server 启动（stdio → %s）", version, remoteServer)
 			return server.Run(cmd.Context())
 		}
@@ -61,6 +66,7 @@ Cline、Zed、Claude Desktop 等 AI Agent 调用 Argus 的证书管理能力。
 		})
 		server := mcp.NewServer(ops, version, mcp.Config{
 			AllowKeyDownload: b.cfg.MCP.AllowKeyDownload,
+			Scopes:           scopes,
 		})
 		log.Printf("Argus %s MCP Server 启动（stdio）", version)
 		return server.Run(cmd.Context())
@@ -69,4 +75,6 @@ Cline、Zed、Claude Desktop 等 AI Agent 调用 Argus 的证书管理能力。
 
 func init() {
 	rootCmd.AddCommand(mcpCmd)
+	mcpCmd.Flags().StringSliceVar(&mcpScopes, "scopes", nil,
+		"本地模式工具收敛：只注册指定 scope 的工具（如 certificates:read；all/read/具体 scope，可逗号分隔或多次传入）")
 }
