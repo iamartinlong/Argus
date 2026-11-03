@@ -37,7 +37,8 @@ scheduler:
 
 # MCP（Model Context Protocol）服务：供 Claude Code / Cline / Zed 等 AI Agent 调用
 mcp:
-  enabled: false              # HTTP 传输开关（M2 生效）。argus mcp 子命令（stdio）不受此限
+  enabled: false              # HTTP 传输开关：true 后开放 /mcp 端点（Streamable HTTP），
+                              # 客户机无需安装 argus 二进制即可连接；argus mcp 子命令（stdio）不受此限
   allow_key_download: false   # 注册「下载证书」工具（含私钥）；开启后每次调用均审计
 
 notification:

@@ -51,6 +51,25 @@ argus mcp --server https://cert.example.com
 
 远程模式下**每个工具调用都由服务端强制校验 token 的 scope 与角色**，客户端无法绕过。
 
+### 方式三：HTTP 直连（客户机不装二进制，推荐）
+
+如果客户机**不安装** argus 二进制，让服务端直接开放 MCP 的 HTTP 端点：
+
+1. 服务端 `config.yaml` 打开开关：
+
+   ```yaml
+   mcp:
+     enabled: true                # 开放 /mcp 端点（Streamable HTTP）
+     allow_key_download: false    # 是否注册「下载证书」工具（含私钥）
+   ```
+
+2. 重启服务，客户端连 `https://cert.example.com/mcp`——**不需要在客户机装任何东西**。
+
+安全性：与 Web/REST 同端口同 TLS，复用 API Token 认证；每个工具调用按 token 的 scope 强制校验
+（token 看不到自己无权调用的工具，调用也会被拒）；跨源防护自动拦截浏览器跨源请求（DNS rebinding）。
+
+> stdio 模式（方式一/二）与 HTTP 模式可同时开：同机 Agent 用 stdio 更省事，远程/免安装客户机用 HTTP。
+
 ## 客户端配置示例
 
 ### Claude Code
@@ -89,6 +108,55 @@ claude mcp add argus-remote -- argus mcp --server https://cert.example.com
       "command": {
         "path": "argus",
         "args": ["mcp", "--config", "/etc/argus/config.yaml"]
+      }
+    }
+  }
+}
+```
+
+### OpenCode / Codex 等终端 Agent（免安装二进制）
+
+终端 Agent 推荐直接用 **HTTP 模式**连服务端，客户机不用装 argus。
+
+OpenCode（`opencode.jsonc`）：
+
+```jsonc
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "servers": {
+      "argus": {
+        "type": "remote",
+        "url": "https://cert.example.com/mcp",
+        "oauth": false,
+        "headers": {
+          "X-API-Token": "{env:ARGUS_API_TOKEN}"
+        }
+      }
+    }
+  }
+}
+```
+
+命令行等价（token 走环境变量，不落配置文件）：
+
+```bash
+export ARGUS_API_TOKEN=st_xxxxxxxx
+opencode mcp add argus --url https://cert.example.com/mcp --header 'X-API-Token={env:ARGUS_API_TOKEN}'
+```
+
+Codex 及其他支持 Streamable HTTP 的客户端同理：填 URL + 请求头 `X-API-Token: <token>`。
+
+若客户机**能**装 argus 二进制，也可用 stdio 模式（同机 Agent 更省事，少一次网络往返）：
+
+```jsonc
+{
+  "mcp": {
+    "servers": {
+      "argus": {
+        "type": "local",
+        "command": ["argus", "mcp", "--server", "https://cert.example.com"],
+        "environment": { "ARGUS_API_TOKEN": "{env:ARGUS_API_TOKEN}" }
       }
     }
   }
@@ -165,6 +233,7 @@ argus mcp --config /etc/argus/config.yaml --scopes certificates:read
 - **token 保管**：远程模式的 token 等同账号凭证。建议用环境变量传入、定期轮换、可随时在 API Token 页吊销
 - **审计**：所有写操作走既有审计体系（`certificate.issue/renew/revoke/deploy` 等 action），可在审计日志页追溯；MCP 调用不产生新 action 类型
 - **本地模式进程权限** = 运行用户权限，请以适当的系统用户运行
+- **HTTP 模式**：与 Web 同端口同 TLS，复用 API Token 认证与 scope 强制；已内置跨源防护（拦截浏览器跨源请求与 DNS rebinding）。生产环境务必 HTTPS，并按最小权限授予 token scope
 
 ## 排障
 
@@ -175,6 +244,10 @@ argus mcp --config /etc/argus/config.yaml --scopes certificates:read
 | `download_certificate` 不存在 | 默认不注册；在 `config.yaml` 设置 `mcp.allow_key_download: true` 后重启 |
 | 签发长时间无响应 | ACME 签发可能耗时数分钟（DNS 传播验证）；客户端超时请调大，或先用 `get_task_logs` 看进度 |
 | 提示"证书未绑定部署目标" | `deploy_certificate` 未指定 `target_ids` 且证书没有绑定任何目标；显式传 `target_ids` |
+| HTTP 模式连不上（`/mcp` 404） | 服务端 `config.yaml` 的 `mcp.enabled` 需为 `true` 并重启；为 false 时该端点不存在（stdio 子命令不受影响） |
+| HTTP 模式返回 401 | 请求头不对：API Token 走 `X-API-Token`，**不要**放 `Authorization: Bearer`（那会按 JWT 校验而失败） |
+| HTTP 模式返回 403 权限不足 | token 的 scope 不含该工具所需权限（见上方工具清单）；工具根本不出现在列表里即是此因 |
+| 浏览器里打开 `/mcp` 被拒 | 跨源防护生效中（MCP 端点为程序化客户端设计，不建议从浏览器直接访问） |
 
 ## 相关文档
 

@@ -115,5 +115,8 @@ func (s *Server) Run(ctx context.Context) error {
 	return s.sdk.Run(ctx, &mcp.StdioTransport{})
 }
 
+// SDKServer 返回底层 SDK Server，供 HTTP 传输（NewHTTPHandler）挂载。
+func (s *Server) SDKServer() *mcp.Server { return s.sdk }
+
 // registerTools 注册工具集（按 cfg.Scopes 收敛；T13 视 AllowKeyDownload）。
 // M1a 阶段为零工具（仅验证协议骨架），M1b 填充 13 个工具。

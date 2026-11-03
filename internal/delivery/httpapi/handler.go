@@ -12,24 +12,25 @@ import (
 	"github.com/iamartinlong/Argus/internal/application"
 	"github.com/iamartinlong/Argus/internal/config"
 	"github.com/iamartinlong/Argus/internal/domain"
+	"github.com/iamartinlong/Argus/internal/mcp"
 	"github.com/iamartinlong/Argus/webassets"
 )
 
 type Handler struct {
-	router    chi.Router
-	jwt       jwtVerifier
-	users     domain.UserStore
-	certStore domain.CertificateStore
-	orders    domain.OrderStore
-	tasks     domain.TaskLogStore
-	scan      ScanRunner
-	tokens    *application.ApiTokenService
-	auth      *application.AuthService
-	audit     *application.AuditService
-	notifySvc *application.NotificationService
+	router     chi.Router
+	jwt        jwtVerifier
+	users      domain.UserStore
+	certStore  domain.CertificateStore
+	orders     domain.OrderStore
+	tasks      domain.TaskLogStore
+	scan       ScanRunner
+	tokens     *application.ApiTokenService
+	auth       *application.AuthService
+	audit      *application.AuditService
+	notifySvc  *application.NotificationService
 	deployRecs domain.DeployRecordStore
-	sendLogs  domain.NotificationSendLogStore
-	accessTTL time.Duration
+	sendLogs   domain.NotificationSendLogStore
+	accessTTL  time.Duration
 	appVersion string
 }
 
@@ -77,19 +78,19 @@ type ScanRunner interface {
 
 func NewHandler(cfg config.Config, deps HandlerDeps) *Handler {
 	h := &Handler{
-		jwt:       deps.JWT,
-		users:     deps.Users,
-		certStore: deps.CertStore,
-		orders:    deps.Orders,
-		tasks:     deps.TaskLogs,
-		scan:      deps.ScanRunner,
-		tokens:    deps.ApiTokens,
-		auth:      deps.Auth,
-		audit:     deps.AuditService,
-		notifySvc: deps.NotificationService,
+		jwt:        deps.JWT,
+		users:      deps.Users,
+		certStore:  deps.CertStore,
+		orders:     deps.Orders,
+		tasks:      deps.TaskLogs,
+		scan:       deps.ScanRunner,
+		tokens:     deps.ApiTokens,
+		auth:       deps.Auth,
+		audit:      deps.AuditService,
+		notifySvc:  deps.NotificationService,
 		deployRecs: deps.DeployRecords,
-		sendLogs:  deps.SendLogs,
-		accessTTL: deps.AccessTTL,
+		sendLogs:   deps.SendLogs,
+		accessTTL:  deps.AccessTTL,
 		appVersion: deps.AppVersion,
 	}
 	authHandler := newAuthHandler(deps.Auth, deps.AccessTTL, deps.RefreshTTL, cfg.Auth.CookieSecure)
@@ -106,6 +107,21 @@ func NewHandler(cfg config.Config, deps HandlerDeps) *Handler {
 	tokenHandler := newTokenHandler(deps.ApiTokens)
 	agentHandler := newAgentHandler(deps.AgentService)
 	contactHandler := newContactHandler(deps.ContactService)
+
+	// MCP over Streamable HTTP（M2）：与 Web/REST 同端口同 TLS，复用 API Token 认证。
+	// mcp.enabled 为 false 时不挂载（端点 404），stdio 子命令不受此限。
+	mcpOps := mcp.NewLocalOps(mcp.LocalDeps{
+		Certs:    deps.CertService,
+		Deploy:   deps.DeployService,
+		Accounts: deps.AccountService,
+		DnsAccts: deps.DnsAccountService,
+		Agents:   deps.AgentService,
+		TaskLogs: deps.TaskLogs,
+		Cryptor:  deps.Cryptor,
+	})
+	mcpHTTP := mcp.NewHTTPHandler(mcpOps, deps.AppVersion, mcp.HTTPConfig{
+		AllowKeyDownload: cfg.MCP.AllowKeyDownload,
+	})
 
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
@@ -194,6 +210,20 @@ func NewHandler(cfg config.Config, deps HandlerDeps) *Handler {
 			r.Post("/task-logs/scan", h.triggerScan)
 		})
 	})
+
+	// MCP over Streamable HTTP（M2）：/mcp，需认证（JWT 或 API Token）。
+	// 复用 authenticate 中间件；凭证 scope 由 MCP 层按工具名强制。
+	// 跨源防护包一层（Go 1.25+ 标准库）——防 DNS rebinding 让浏览器打到本服务。
+	if cfg.MCP.Enabled {
+		protected := http.NewCrossOriginProtection().Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// 注入当前凭证的 scopes，供 MCP 按请求收敛工具集
+			mcpHTTP.ServeHTTP(w, r.WithContext(mcp.WithScopes(r.Context(), scopesForPrincipal(userFrom(r.Context())))))
+		}))
+		r.Group(func(r chi.Router) {
+			r.Use(h.authenticate)
+			r.Mount("/mcp", protected)
+		})
+	}
 
 	h.router = r
 	return h

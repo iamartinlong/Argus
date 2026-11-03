@@ -14,8 +14,11 @@ type ctxKey string
 const ctxUserKey ctxKey = "user"
 
 type principal struct {
-	User     *domain.User
+	User      *domain.User
 	TokenType string // "jwt" | "apitoken"
+	// TokenScopes API Token 的 scope 列表（仅 TokenType=="apitoken" 非空）。
+	// MCP HTTP 传输用它按请求收敛工具集；JWT 会话走角色映射（见 scopesForPrincipal）。
+	TokenScopes []string
 }
 
 func userFrom(ctx context.Context) *principal {
@@ -25,6 +28,33 @@ func userFrom(ctx context.Context) *principal {
 
 func withUser(ctx context.Context, p *principal) context.Context {
 	return context.WithValue(ctx, ctxUserKey, p)
+}
+
+// scopesForPrincipal 当前凭证的有效 scope 列表。
+//   - API Token：令牌自身声明的 scopes（服务端已校验）
+//   - JWT 会话：按角色映射（与 REST 的 requireRole 模型保持一致——
+//     admin 全量；operator 可读写证书与部署但不可管理 Agent；readonly 只读）
+//
+// 返回 nil 表示"不收敛"（仅当无法确定身份时由调用方决定，通常不应发生）。
+func scopesForPrincipal(p *principal) []string {
+	if p == nil || p.User == nil {
+		return nil
+	}
+	if p.TokenType == "apitoken" {
+		return p.TokenScopes
+	}
+	switch p.User.Role {
+	case domain.RoleAdmin:
+		return []string{domain.ScopeAll}
+	case domain.RoleOperator:
+		return []string{
+			domain.ScopeCertRead, domain.ScopeCertWrite,
+			domain.ScopeDeployRead, domain.ScopeDeployWrite,
+			domain.ScopeAccountRead,
+		}
+	default: // readonly 及未知角色：只读
+		return []string{domain.ScopeRead}
+	}
 }
 
 func (h *Handler) authenticate(next http.Handler) http.Handler {
@@ -72,16 +102,21 @@ func (h *Handler) authenticate(next http.Handler) http.Handler {
 				writeError(w, r, http.StatusForbidden, "Token 无权执行该操作（需要 scope: "+required+"）")
 				return
 			}
-			next.ServeHTTP(w, r.WithContext(withUser(r.Context(), &principal{User: user, TokenType: "apitoken"})))
+			next.ServeHTTP(w, r.WithContext(withUser(r.Context(), &principal{User: user, TokenType: "apitoken", TokenScopes: token.Scopes})))
 			return
 		}
 		writeError(w, r, http.StatusUnauthorized, "未认证")
 	})
 }
 
-// requiredScope 根据请求路径与方法返回所需 scope
+// requiredScope 根据请求路径与方法返回所需 scope。
+// /mcp 除外：MCP over HTTP 的全部调用都是同一个端点，路径式规则无从判断，
+// 改由 MCP 层按工具名 + 凭证 scope 强制（见 internal/mcp）。
 func requiredScope(r *http.Request) (string, bool) {
 	path := r.URL.Path
+	if path == "/mcp" || strings.HasPrefix(path, "/mcp/") {
+		return "", false
+	}
 	write := r.Method != http.MethodGet && r.Method != http.MethodHead && r.Method != http.MethodOptions
 	readScope := func(resource string) string { return resource + ":read" }
 	writeScope := func(resource string) string { return resource + ":write" }

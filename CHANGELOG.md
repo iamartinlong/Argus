@@ -5,6 +5,20 @@
 
 > 1.0.x 为公开仓库建立前发布的版本，此处保留变更摘要；提交历史未随公开仓库迁移。
 
+## [未发布]
+
+### 新增
+
+- **MCP HTTP 传输**：客户机**无需安装 argus 二进制**即可连接——服务端开放 `/mcp` 端点（MCP Streamable HTTP），与 Web/REST 同端口同 TLS
+  - 配置开关 `mcp.enabled`（默认 false；`true` 后开放端点，`argus mcp` stdio 子命令不受影响）
+  - 复用既有 API Token 认证（`X-API-Token` 头）与 JWT 会话；**按请求的凭证 scope 收敛工具集**——token 看不到也无权调用超出 scope 的工具（JWT 会话按角色映射：admin 全量 / operator 证书与部署读写 / readonly 只读）
+  - 跨源防护：包一层 Go 1.25+ 标准库 `http.NewCrossOriginProtection()`，实测拦截恶意 Origin（403）；SDK 自身的 localhost DNS rebinding 防护保持默认开启
+  - Stateless 模式：每个 POST 自包含，无会话亲和性，反向代理后可水平扩容
+  - T13（私钥下载）在 HTTP 模式下可正确注册：MCP Server 即 Argus 本体，能直接读到 `mcp.allow_key_download` 开关（M1 远程 REST 代理模式无法确认故一律不注册）
+  - 顺带修复：`webassets` 的 SPA 回退此前会把 `/mcp` 当前端路由返回 index.html，导致挂载不生效
+  - 测试：e2e 覆盖未认证 401、管理员 12 工具、只读 token 工具集收敛（写工具不可见）、`X-API-Token` 认证、恶意 Origin 403、`mcp.enabled=false` 时 404
+  - 文档站 MCP 指南新增「方式三：HTTP 直连」与 OpenCode / Codex 配置示例
+
 ## [1.4.0] - 2026-11-03
 
 ### 新增

@@ -29,9 +29,10 @@ func Handler(apiHandler http.Handler) http.Handler {
 	}
 	fileServer := http.FileServer(http.FS(sub))
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// API、健康检查、指标与 OpenAPI 规范走后端
+		// API、健康检查、指标、OpenAPI 规范与 MCP（HTTP 传输）走后端
 		if strings.HasPrefix(r.URL.Path, "/api/") || r.URL.Path == "/healthz" ||
-			r.URL.Path == "/metrics" || r.URL.Path == "/openapi.yaml" {
+			r.URL.Path == "/metrics" || r.URL.Path == "/openapi.yaml" ||
+			r.URL.Path == "/mcp" || strings.HasPrefix(r.URL.Path, "/mcp/") {
 			apiHandler.ServeHTTP(w, r)
 			return
 		}
