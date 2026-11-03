@@ -12,6 +12,7 @@
 | 仓库同步 | GitHub `iamartinlong/Argus`（主）+ 内网 gitea（`origin`，main + tag 同步） |
 | CI | 4 job（Go vet+test / Web typecheck+build / Cross-build / Docs Pages）+ Release（tag 触发，6 平台 zip + SHA256SUMS） |
 | 未发布改动 | 无（CHANGELOG 无 `[未发布]` 段） |
+| 测试 | 337 个用例全绿；函数级覆盖率 47.5%（domain 100% / certbundle 86.6% / mcp 60.7%） |
 | 本地开发实例 | **已关闭**（2026-11-03）：8443 服务已停、端口释放、浏览器标签页已关；临时配置 `%TEMP%\opencode\argus-web\` 保留备用。数据 `data/argus.db` 原样保留（含 `admin` 账号） |
 
 ## 2. 本次工作日志
@@ -59,6 +60,25 @@
 
 CHANGELOG `[未发布]` 转正 → `root.go` version 1.3.0→1.4.0 → commit → tag → 双端推送 → CI 自动发布（6 平台 + SHA256SUMS）。CI 全绿，GitHub Release 已建，文档站 Pages 新页面全部 200。
 
+### 2.7 覆盖率审计与测试补充（`d9db94b` / `5c81282` / `0ebfbc6`）
+
+函数级覆盖率审计（44.8% 起）→ 补充 47 个用例（总 337 PASS）→ 47.5%：
+
+| 包 | 前 | 后 | 内容 |
+|---|---|---|---|
+| `internal/domain` | 27.8% | **100%** | 9 个枚举 `Valid()`、**API Token scope 矩阵**（all/read/精确/多 scope/空/nil——安全关键，此前 0%）、证书状态机 `UpdateStatus`（终态保护、无有效期归 pending、30 天窗口边界） |
+| `certbundle` | **0%** | **86.6%** | zip/空包、随机密码（长度+字符集+唯一性）、5 种服务器格式；iis/tomcat 用 go-pkcs12 **真解析 PFX** 校验密码/证书 CN/私钥一致 |
+| `internal/mcp` | 27.8% | **60.7%** | httptest 覆盖 `do()`（信封解包、`X-API-Token`、HTTP→domain 错误映射、5xx 不透细节）、8 个远程 ops 的 method+path 映射表、`certBrief` 不泄露 PEM/私钥 |
+
+顺带修掉两个问题：
+
+1. **`deploy.SplitChain` 文档与实现不符**（真缺陷）：注释称"无法解析为任何证书时返回错误"，实现却静默返回空串——会导致 apache 格式下载把**空证书文件**递给用户。改为非空但解析失败才报错（空/空白输入行为不变）+ 4 个边界用例。
+2. **`mcp.certBrief` 不可测**：内部读系统时钟。改为显式传 `now`（与 `domain.ComputeCoverage` 同风格），5 个调用点传 `time.Now().UTC()`。
+
+**收敛重复实现**：`ops_local.go` 与 `ops_remote.go` 各写了一遍同样的过滤规则（刷新过渡态 + 状态/临期天数/关键字）——正是远程联调出 bug 的同类风险，且远程那份有测试、本地那份没有。抽出 `internal/mcp/filter.go` 的 `filterCertificates(certs, f, now)` 共用，两侧各减 17 行，配 26 例表驱动测试。
+
+剩余 15 个 0% 全为 `ops_local` 薄委托方法 + `server.go Run`：前者需装配 application 服务栈而业务逻辑已在 application 层覆盖，后者由 stdio e2e 覆盖——**结论是不补**。
+
 ## 3. 待办（TODO）
 
 ### P1 — 近期
@@ -78,6 +98,8 @@ CHANGELOG `[未发布]` 转正 → `root.go` version 1.3.0→1.4.0 → commit �
 | T6 | MCP 工具覆盖面扩展 | 当前 12+1 未含：批量续期/部署、通知规则查询、证书导出。按需增量 |
 | T7 | Playwright E2E 冒烟 | 路线图 P3，M5 预留 |
 | T8 | CLI 子命令补全 | `deploy-target`/`agent`/`notification` 使用频率低，已下调可选 |
+| T9 | `internal/testutil` 拆分 | 拆为 `testcert`（纯 stdlib）+ `testlive`（重依赖），解除叶子包测试的 import cycle 陷阱；当前 certbundle 已内联绕过，属技术债清理 |
+| T10 | `internal/mcp` 三个文件 gofmt 对齐 | `server.go`/`ops_remote.go`/`tools.go` 的 const 块与 map 字面量对齐为 HEAD 既有问题，刻意未顺手格式化（避免无关 diff）；可作独立提交 |
 
 ### P3 — 长期（路线图）
 
@@ -94,6 +116,10 @@ go build -o build\argus.exe .\cmd\argus
 # 全量验证
 go vet ./...; go test ./...
 go test -tags integration ./internal/tests/e2e/ -run TestMCPStdioEndToEnd   # 需 $env:ARGUS_E2E_BIN 指向二进制
+
+# 覆盖率（函数级；total 行是总体，按包筛 0% 函数找缺口）
+go test ./... -coverprofile=coverage -covermode=atomic
+go tool cover -func coverage          # 注意：文件名叫 coverage 而非 coverage.out
 
 # 前端
 cd web; npx tsc -b; npx vitest run; npm run build     # build 输出到 webassets/dist（go:embed 源）
@@ -124,6 +150,8 @@ powershell -ExecutionPolicy Bypass -File $env:TEMP\opencode\argus-mcp-verify.ps1
 | **go:embed 路径是 `webassets/dist`** | 不是 `web/dist`；前端 `npm run build` 的 outDir 已指向 `../webassets/dist` |
 | **domain 实体无 json tag** | 任何跨边界序列化（REST 响应 → 远程 ops）都要 DTO 层，不能直接 unmarshal 进 domain 实体 |
 | **`.ac4-test/` 等联调产物** | 未 gitignore，提交前必须删；`mock-data/`、`data/` 已 gitignore |
+| **`internal/testutil` 有 import cycle 陷阱** | `live_server.go` 拖入整个 httpapi，导致叶子包（如 certbundle）测试无法复用 `GenTestCert`。**建议拆成 `testcert`（纯 stdlib）+ `testlive`（重依赖）**；当前 certbundle 测试已内联一份证书生成绕过 |
+| **PowerShell here-string 匹配文件内容常失败** | 目标 Go 文件多为 LF 行尾，而 here-string 是 CRLF——匹配前先 `-replace "\r\n","\n"` 归一化；或直接用 edit 工具（ASCII 片段） |
 
 ### 4.4 测试环境变量
 
@@ -156,3 +184,4 @@ powershell -ExecutionPolicy Bypass -File $env:TEMP\opencode\argus-mcp-verify.ps1
 | 主密钥不可轮换 | 轮换需重新加密全部私钥/凭据（规划中） |
 | 生产机密码 | 用户侧持有，未记录在本仓库 |
 | `data/argus.db` 本地库近乎空 | 若要有数据的验证环境，可从生产备份 restore（`argus restore`） |
+| `internal/mcp/{server,ops_remote,tools}.go` gofmt 未对齐 | HEAD 既有，刻意未在功能提交中顺手格式化；见 TODO T10 |
