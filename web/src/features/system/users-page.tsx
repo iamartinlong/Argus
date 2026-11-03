@@ -273,7 +273,7 @@ export function UsersPage() {
             <div className="space-y-2">
               <Label>角色</Label>
               <Select value={watch("role")} onValueChange={(v) => setValue("role", v as UserForm["role"])}>
-                <SelectTrigger>
+                <SelectTrigger className="w-full">
                   <SelectValue>{(v) => roleNames[v as string] ?? v}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>

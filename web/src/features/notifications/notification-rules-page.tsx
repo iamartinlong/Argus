@@ -344,7 +344,7 @@ export function NotificationRulesPage() {
                 value={watch("event")}
                 onValueChange={(v) => setValue("event", v as RuleForm["event"])}
               >
-                <SelectTrigger>
+                <SelectTrigger className="w-full">
                   <SelectValue>{(v) => eventNames[v as string] ?? v}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>

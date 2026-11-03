@@ -337,7 +337,7 @@ export function ChannelsPage() {
                 value={watch("type")}
                 onValueChange={(v) => setValue("type", v as ChannelForm["type"])}
               >
-                <SelectTrigger>
+                <SelectTrigger className="w-full">
                   <SelectValue>{(v) => channelMeta[v as string]?.name ?? v}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>

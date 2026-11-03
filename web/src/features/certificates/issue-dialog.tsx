@@ -1,4 +1,5 @@
 import { useEffect } from "react"
+import { useNavigate } from "react-router-dom"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -27,6 +28,7 @@ import {
 import { api, getErrorMessage } from "@/lib/api"
 import { NOTIFICATION_EVENTS, type AcmeAccount, type ContactPerson, type DnsProviderAccount } from "@/lib/types"
 import { DomainInput } from "@/components/domain-input"
+import { EmptySelectHint } from "@/components/empty-select-hint"
 
 const issueSchema = z.object({
   domains: z.string().optional(),
@@ -81,6 +83,7 @@ interface Props {
 
 export function IssueDialog({ open, onOpenChange }: Props) {
   const queryClient = useQueryClient()
+  const navigate = useNavigate()
   const { data: accounts } = useQuery({
     queryKey: ["acme-accounts"],
     queryFn: async () => {
@@ -234,30 +237,41 @@ export function IssueDialog({ open, onOpenChange }: Props) {
         >
           <div className="space-y-2">
             <Label>渠道账户</Label>
-            <Select
-              value={watch("account_id")}
-              onValueChange={(v) => {
-                setValue("account_id", v ?? "")
-                setValue("contact_id", "")
-                setValue("csr_mode", false)
-              }}
-            >
-              <SelectTrigger>
-                <SelectValue>
-                  {(v) =>
-                    (v && accounts?.find((a) => a.id === v)?.name) ??
-                    "选择渠道账户"
-                  }
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {accounts?.map((a) => (
-                  <SelectItem key={a.id} value={a.id}>
-                    {a.name}（{a.provider}）
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {accounts && accounts.length === 0 ? (
+              <EmptySelectHint
+                text="尚未配置渠道账户。签发证书需要先配置 ACME 或云厂商渠道。"
+                actionLabel="去创建渠道账户"
+                onAction={() => {
+                  onOpenChange(false)
+                  navigate("/acme-accounts")
+                }}
+              />
+            ) : (
+              <Select
+                value={watch("account_id")}
+                onValueChange={(v) => {
+                  setValue("account_id", v ?? "")
+                  setValue("contact_id", "")
+                  setValue("csr_mode", false)
+                }}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue>
+                    {(v) =>
+                      (v && accounts?.find((a) => a.id === v)?.name) ??
+                      "选择渠道账户"
+                    }
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {accounts?.map((a) => (
+                    <SelectItem key={a.id} value={a.id}>
+                      {a.name}（{a.provider}）
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
             {errors.account_id && (
               <p className="text-sm text-destructive">{errors.account_id.message}</p>
             )}
@@ -314,7 +328,7 @@ export function IssueDialog({ open, onOpenChange }: Props) {
                 value={watch("verification")}
                 onValueChange={(v) => setValue("verification", v as "http01" | "dns01")}
               >
-                <SelectTrigger>
+                <SelectTrigger className="w-full">
                   <SelectValue>
                     {(v) =>
                       v === "dns01" ? "DNS-01（需 DNS API 凭据）" : "HTTP-01（需 80 端口可达）"
@@ -335,37 +349,37 @@ export function IssueDialog({ open, onOpenChange }: Props) {
               </p>
               <div className="space-y-2">
                 <Label>申请人</Label>
-                <Select
-                  value={watch("contact_id") ?? ""}
-                  onValueChange={(v) => setValue("contact_id", v ?? "")}
-                >
-                  <SelectTrigger>
-                    <SelectValue>
-                      {(v) => {
-                        if (!v) return "使用默认（第一个）申请人"
-                        const c = contacts?.find((x) => x.id === v)
-                        return c ? `${c.name}（${c.email}）` : "选择申请人"
-                      }}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    {contacts && contacts.length > 0 ? (
-                      contacts.map((c) => (
+                {contacts && contacts.length === 0 ? (
+                  <EmptySelectHint
+                    text="尚未配置申请人信息。云厂商渠道签发必须携带联系人。"
+                    actionLabel="去创建申请人"
+                    onAction={() => {
+                      onOpenChange(false)
+                      navigate("/contacts")
+                    }}
+                  />
+                ) : (
+                  <Select
+                    value={watch("contact_id") ?? ""}
+                    onValueChange={(v) => setValue("contact_id", v ?? "")}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue>
+                        {(v) => {
+                          if (!v) return "使用默认（第一个）申请人"
+                          const c = contacts?.find((x) => x.id === v)
+                          return c ? `${c.name}（${c.email}）` : "选择申请人"
+                        }}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {contacts?.map((c) => (
                         <SelectItem key={c.id} value={c.id}>
                           {c.name}（{c.email}）
                         </SelectItem>
-                      ))
-                    ) : (
-                      <SelectItem value="__none" disabled>
-                        未配置申请人，请到 系统→申请人信息 添加
-                      </SelectItem>
-                    )}
-                  </SelectContent>
-                </Select>
-                {(!contacts || contacts.length === 0) && (
-                  <p className="text-xs text-destructive">
-                    云渠道签发需要申请人信息，请先到 系统→申请人信息 配置
-                  </p>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 )}
               </div>
             </>
@@ -379,7 +393,7 @@ export function IssueDialog({ open, onOpenChange }: Props) {
                   value={watch("dns_account_id") ?? ""}
                   onValueChange={(v) => setValue("dns_account_id", v === "__manual" ? "" : (v ?? ""))}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="w-full">
                     <SelectValue>
                       {(v) => {
                         if (!v || v === "__manual") return "手动输入凭据"
@@ -403,7 +417,7 @@ export function IssueDialog({ open, onOpenChange }: Props) {
                       value={watch("dns_provider")}
                       onValueChange={(v) => setValue("dns_provider", v ?? "alidns")}
                     >
-                      <SelectTrigger>
+                      <SelectTrigger className="w-full">
                         <SelectValue>
                           {(v) => (v ? `DNS 提供商：${v}` : "选择 DNS 提供商")}
                         </SelectValue>

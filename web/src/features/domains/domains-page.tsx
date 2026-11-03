@@ -367,7 +367,7 @@ export function DomainsPage() {
                 value={watch("expected_status")}
                 onValueChange={(v) => setValue("expected_status", (v ?? "must_have_cert") as DomainExpectedStatus)}
               >
-                <SelectTrigger>
+                <SelectTrigger className="w-full">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>

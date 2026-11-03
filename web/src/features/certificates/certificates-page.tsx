@@ -1,6 +1,6 @@
 import { useState } from "react"
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { useNavigate } from "react-router-dom"
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { Plus, RefreshCcw, Rocket, Upload, ShieldCheck } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
@@ -33,6 +33,7 @@ import type { Certificate } from "@/lib/types"
 import { RefreshButton } from "@/components/refresh-button"
 import { TableRefreshOverlay } from "@/components/table-refresh-overlay"
 import { useTableRefresh } from "@/hooks/use-table-refresh"
+import { EmptySelectHint } from "@/components/empty-select-hint"
 import { CertStatusBadge } from "./status-badge"
 import { IssueDialog } from "./issue-dialog"
 import { ImportDialog } from "./import-dialog"
@@ -274,18 +275,29 @@ export function CertificatesPage() {
             <DialogDescription>将选中的证书部署到指定目标</DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
-            <Select value={deployTarget} onValueChange={(v) => setDeployTarget(v ?? "")}>
-              <SelectTrigger>
-                <SelectValue>
-                  {(v) => targets?.find((t) => t.id === v)?.name ?? (v ? v : "选择部署目标")}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {targets?.map((t) => (
-                  <SelectItem key={t.id} value={t.id}>{t.name}（{t.type}）</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {targets && targets.length === 0 ? (
+              <EmptySelectHint
+                text="尚未配置部署目标。请先创建一个部署目标（SSH / Agent / 本机等）。"
+                actionLabel="去创建部署目标"
+                onAction={() => {
+                  setDeployOpen(false)
+                  navigate("/deploy-targets")
+                }}
+              />
+            ) : (
+              <Select value={deployTarget} onValueChange={(v) => setDeployTarget(v ?? "")}>
+                <SelectTrigger className="w-full">
+                  <SelectValue>
+                    {(v) => targets?.find((t) => t.id === v)?.name ?? (v ? v : "选择部署目标")}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {targets?.map((t) => (
+                    <SelectItem key={t.id} value={t.id}>{t.name}（{t.type}）</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setDeployOpen(false)}>

@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useState } from "react"
+import { useNavigate } from "react-router-dom"
 import { useForm, type UseFormReturn } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
@@ -35,6 +36,7 @@ import {
 } from "@/components/ui/table"
 import { api, getErrorMessage } from "@/lib/api"
 import { DomainInput } from "@/components/domain-input"
+import { EmptySelectHint } from "@/components/empty-select-hint"
 import { RefreshButton } from "@/components/refresh-button"
 import { TableRefreshOverlay } from "@/components/table-refresh-overlay"
 import { useTableRefresh } from "@/hooks/use-table-refresh"
@@ -285,6 +287,8 @@ interface TargetFieldsProps {
   scene: string
   form: UseFormReturn<TargetForm>
   agents?: { id: string; name: string; status: string }[]
+  /** 无可用 Agent 时跳转到 Agent 管理页（由页面层提供导航能力） */
+  onGoToAgents?: () => void
 }
 
 // Field 简易错误提示
@@ -295,7 +299,7 @@ function FieldError({ form, name }: { form: UseFormReturn<TargetForm>; name: key
 }
 
 // TargetFields 按「通道 type × 场景 scene」联合渲染配置字段（创建/编辑共用）
-function TargetFields({ type, scene, form, agents }: TargetFieldsProps) {
+function TargetFields({ type, scene, form, agents, onGoToAgents }: TargetFieldsProps) {
   const { register, watch, setValue } = form
   const isPFX = scene === "tomcat" || scene === "iis"
 
@@ -476,23 +480,31 @@ function TargetFields({ type, scene, form, agents }: TargetFieldsProps) {
         <>
           <div className="space-y-2">
             <Label>Agent</Label>
-            <Select value={watch("agent_id") || ""} onValueChange={(v) => setValue("agent_id", v ?? "")}>
-              <SelectTrigger>
-                <SelectValue>
-                  {(v) =>
-                    (v && agents?.find((a) => a.id === v)?.name) ??
-                    "选择 Agent"
-                  }
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {agents?.map((a) => (
-                  <SelectItem key={a.id} value={a.id}>
-                    {a.name}（{a.status === "online" ? "在线" : "离线"}）
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {agents && agents.length === 0 ? (
+              <EmptySelectHint
+                text="尚未添加 Agent。Agent 通道由业务机出站轮询拉取任务，适合 NAT/无入站端口环境。"
+                actionLabel="去添加 Agent"
+                onAction={() => onGoToAgents?.()}
+              />
+            ) : (
+              <Select value={watch("agent_id") || ""} onValueChange={(v) => setValue("agent_id", v ?? "")}>
+                <SelectTrigger className="w-full">
+                  <SelectValue>
+                    {(v) =>
+                      (v && agents?.find((a) => a.id === v)?.name) ??
+                      "选择 Agent"
+                    }
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {agents?.map((a) => (
+                    <SelectItem key={a.id} value={a.id}>
+                      {a.name}（{a.status === "online" ? "在线" : "离线"}）
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
             <FieldError form={form} name="agent_id" />
           </div>
           {isPFX ? (
@@ -594,6 +606,7 @@ function TargetFields({ type, scene, form, agents }: TargetFieldsProps) {
 }
 
 export function DeployTargetsPage() {
+  const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [dialogOpen, setDialogOpen] = useState(false)
   const CREATE_DEFAULT: TargetForm = {
@@ -860,7 +873,7 @@ export function DeployTargetsPage() {
               <div className="space-y-2">
                 <Label>类型</Label>
                 <Select value={type} onValueChange={(v) => setValue("type", v as TargetForm["type"])}>
-                  <SelectTrigger>
+                  <SelectTrigger className="w-full">
                     <SelectValue>{(v) => typeNames[v as string] ?? v}</SelectValue>
                   </SelectTrigger>
                   <SelectContent>
@@ -884,7 +897,7 @@ export function DeployTargetsPage() {
                     applyScenePreset(v || "generic", createForm)
                   }}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="w-full">
                     <SelectValue>{(v) => sceneNames[(v as string) || "generic"]}</SelectValue>
                   </SelectTrigger>
                   <SelectContent>
@@ -898,7 +911,16 @@ export function DeployTargetsPage() {
               </div>
             )}
 
-            <TargetFields type={type} scene={scene} form={createForm} agents={agents} />
+            <TargetFields
+              type={type}
+              scene={scene}
+              form={createForm}
+              agents={agents}
+              onGoToAgents={() => {
+                setDialogOpen(false)
+                navigate("/agents")
+              }}
+            />
 
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => { resetCreate(CREATE_DEFAULT); setDialogOpen(false) }}>
@@ -944,7 +966,7 @@ export function DeployTargetsPage() {
                     applyScenePreset(v || "generic", editForm)
                   }}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="w-full">
                     <SelectValue>{(v) => sceneNames[(v as string) || "generic"]}</SelectValue>
                   </SelectTrigger>
                   <SelectContent>
@@ -973,6 +995,10 @@ export function DeployTargetsPage() {
               scene={sceneChannels.includes(editForm.watch("type")) ? (editForm.watch("scene") || "generic") : ""}
               form={editForm}
               agents={agents}
+              onGoToAgents={() => {
+                setEditOpen(false)
+                navigate("/agents")
+              }}
             />
 
             <DialogFooter>

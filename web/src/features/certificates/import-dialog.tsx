@@ -177,7 +177,7 @@ export function ImportDialog({ open, onOpenChange }: Props) {
           <div className="space-y-2">
             <Label>导入方式</Label>
             <Select value={mode} onValueChange={(v) => setMode(v as "pem" | "pfx")}>
-              <SelectTrigger>
+              <SelectTrigger className="w-full">
                 <SelectValue>
                   {(v) => (v === "pfx" ? "PFX / P12 文件（Windows/IIS）" : "PEM 文本（证书 + 私钥）")}
                 </SelectValue>

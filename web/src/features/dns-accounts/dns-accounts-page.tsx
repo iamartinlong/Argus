@@ -265,7 +265,7 @@ export function DnsAccountsPage() {
                 onValueChange={(v) => setValue("provider", v as DnsAccountForm["provider"])}
                 disabled={!!editing}
               >
-                <SelectTrigger>
+                <SelectTrigger className="w-full">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>

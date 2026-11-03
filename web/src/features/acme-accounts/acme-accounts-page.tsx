@@ -323,7 +323,7 @@ export function AcmeAccountsPage() {
                 value={watch("provider")}
                 onValueChange={(v) => setValue("provider", v as AccountForm["provider"])}
               >
-                <SelectTrigger>
+                <SelectTrigger className="w-full">
                   <SelectValue>
                     {(v) =>
                       v === "aliyun"
@@ -459,7 +459,7 @@ export function AcmeAccountsPage() {
                     value={watch("dv_auth_method") || "DNS_AUTO"}
                     onValueChange={(v) => setValue("dv_auth_method", v ?? "DNS_AUTO")}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className="w-full">
                       <SelectValue>
                         {(v) =>
                           v === "DNS"

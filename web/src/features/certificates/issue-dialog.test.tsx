@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest"
 import { render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
+import { MemoryRouter, Routes, Route } from "react-router-dom"
 import { IssueDialog } from "./issue-dialog"
 import { api } from "@/lib/api"
 
@@ -61,9 +62,11 @@ function mockData() {
 function renderDialog() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
-    <QueryClientProvider client={queryClient}>
-      <IssueDialog open onOpenChange={() => {}} />
-    </QueryClientProvider>,
+    <MemoryRouter>
+      <QueryClientProvider client={queryClient}>
+        <IssueDialog open onOpenChange={() => {}} />
+      </QueryClientProvider>
+    </MemoryRouter>,
   )
 }
 
@@ -193,13 +196,44 @@ describe("IssueDialog CSR 模式与表单逻辑", () => {
     expect(body.notify_events).toContain("issue_failed")
   })
 
+  // 渠道账户为空：显示创建引导 + 跳转按钮（而非空下拉）
+  it("渠道账户为空时显示创建引导并可跳转到渠道页", async () => {
+    const user = userEvent.setup()
+    apiMock.get.mockImplementation(async (url: string) => {
+      if (url === "/acme-accounts") return { data: [] }
+      return { data: [] }
+    })
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <MemoryRouter initialEntries={["/certificates"]}>
+        <QueryClientProvider client={queryClient}>
+          <IssueDialog open onOpenChange={() => {}} />
+          <Routes>
+            <Route path="/acme-accounts" element={<div>渠道账户页占位</div>} />
+          </Routes>
+        </QueryClientProvider>
+      </MemoryRouter>,
+    )
+    await screen.findByText("签发证书")
+
+    // 查询解析后显示创建引导（findBy 等待异步查询完成）
+    expect(
+      await screen.findByText("尚未配置渠道账户。签发证书需要先配置 ACME 或云厂商渠道。"),
+    ).toBeInTheDocument()
+    // 点击后导航到渠道账户页（MemoryRouter 内验证路由跳转）
+    await user.click(screen.getByRole("button", { name: /去创建渠道账户/ }))
+    expect(await screen.findByText("渠道账户页占位")).toBeInTheDocument()
+  })
+
   it("关闭再打开后，表单内容被清空（不残留上次域名）", async () => {
     const user = userEvent.setup()
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     const tree = (open: boolean) => (
-      <QueryClientProvider client={queryClient}>
-        <IssueDialog open={open} onOpenChange={() => {}} />
-      </QueryClientProvider>
+      <MemoryRouter>
+        <QueryClientProvider client={queryClient}>
+          <IssueDialog open={open} onOpenChange={() => {}} />
+        </QueryClientProvider>
+      </MemoryRouter>
     )
     const { rerender } = render(tree(true))
     await screen.findByText("签发证书")
