@@ -703,10 +703,7 @@ func (s *CertificateService) finishOrder(ctx context.Context, order *domain.Orde
 
 // auditAction 记录审计（actor 为 nil 时由调度器等系统触发）
 func (s *CertificateService) auditAction(ctx context.Context, actor *domain.User, action domain.AuditAction, resource, detail string) {
-	userID, username := "", "system"
-	if actor != nil {
-		userID, username = actor.ID, actor.Username
-	}
+	userID, username := auditFields(resolveActor(ctx, actor))
 	_ = s.audit.Append(ctx, &domain.AuditLog{
 		UserID:    userID,
 		Username:  username,

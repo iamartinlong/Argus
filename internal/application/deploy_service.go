@@ -477,7 +477,10 @@ func (s *DeployService) targetConfig(target *domain.DeployTarget) (map[string]an
 }
 
 func (s *DeployService) auditAction(ctx context.Context, action string, resource string) {
+	userID, username := auditFields(resolveActor(ctx, nil))
 	_ = s.audit.Append(ctx, &domain.AuditLog{
+		UserID:    userID,
+		Username:  username,
 		Action:    domain.AuditAction(action),
 		Resource:  resource,
 		CreatedAt: s.clock.Now(),

@@ -96,10 +96,7 @@ func validateContact(input ContactInput) error {
 }
 
 func (s *ContactService) auditAction(ctx context.Context, actor *domain.User, action domain.AuditAction, resource, detail string) {
-	userID, username := "", "system"
-	if actor != nil {
-		userID, username = actor.ID, actor.Username
-	}
+	userID, username := auditFields(resolveActor(ctx, actor))
 	_ = s.audit.Append(ctx, &domain.AuditLog{
 		UserID:    userID,
 		Username:  username,

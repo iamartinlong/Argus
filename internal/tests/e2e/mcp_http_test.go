@@ -5,9 +5,16 @@ package e2e
 import (
 	"bytes"
 	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/json"
+	"encoding/pem"
 	"fmt"
 	"io"
+	"math/big"
 	"net/http"
 	"os"
 	"os/exec"
@@ -329,6 +336,163 @@ mcp:
 	}
 }
 
+// T11：审计归属。MCP HTTP 通道发起的操作必须记到真实用户，而不是 system。
+// 同时验证 REST 通道同样受益（两者共用 authenticate 注入的 actor）。
+func TestMCPHTTPAuditAttribution(t *testing.T) {
+	exe := os.Getenv("ARGUS_E2E_BIN")
+	if exe == "" {
+		t.Skip("ARGUS_E2E_BIN 未设置")
+	}
+	work := t.TempDir()
+	port := 18804
+	cfg := filepath.Join(work, "config.yaml")
+	cfgBody := fmt.Sprintf(`server:
+  listen: "127.0.0.1:%d"
+storage:
+  driver: sqlite
+  dsn: %s
+mcp:
+  enabled: true
+`, port, filepath.Join(work, "argus.db"))
+	if err := os.WriteFile(cfg, []byte(cfgBody), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	env := append(os.Environ(),
+		"ARGUS_JWT_SECRET=auditattr-jwt-0123456789abcdef0123456789",
+		"ARGUS_MASTER_KEY=auditattr-master-0123456789abcdef0123456789",
+	)
+	srv := exec.Command(exe, "serve", "--config", cfg)
+	srv.Env = env
+	srv.Dir = work
+	srv.Stdout = os.Stderr
+	srv.Stderr = os.Stderr
+	if err := srv.Start(); err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = srv.Process.Kill() }()
+
+	base := fmt.Sprintf("http://127.0.0.1:%d", port)
+	waitHealthy(t, base)
+
+	admin := exec.Command(exe, "--config", cfg, "init-admin", "--username", "admin", "--password", "AuditAttr12345")
+	admin.Env = env
+	admin.Dir = work
+	_, _ = admin.CombinedOutput()
+
+	login := doJSON(t, http.MethodPost, base+"/api/v1/auth/login", "", map[string]any{
+		"username": "admin", "password": "AuditAttr12345",
+	}, nil)
+	token := nestedString(t, login, "access_token")
+	if token == "" {
+		t.Fatalf("登录失败: %s", mustJSON(t, login))
+	}
+	if st, body := mcpRestPut(t, base+"/api/v1/users/me/password", "Bearer "+token, map[string]any{
+		"old_password": "AuditAttr12345", "new_password": "AuditAttr12345",
+	}); st != http.StatusOK {
+		t.Fatalf("强制改密失败: %d %s", st, body)
+	}
+	login = doJSON(t, http.MethodPost, base+"/api/v1/auth/login", "", map[string]any{
+		"username": "admin", "password": "AuditAttr12345",
+	}, nil)
+	token = nestedString(t, login, "access_token")
+
+	rwToken := createToken(t, base, token, "auditattr-rw", []string{"all"})
+
+	// ---------- 1. MCP 通道：触发一个会写审计的操作 ----------
+	// deploy_certificate 对不存在的 ID 会在 GetCertificate 阶段失败（不写审计），
+	// 故用一个必然走到审计写入的操作：导入证书（AuditCertImport）。
+	// 构造一张自签证书经 testutil 生成代价高，这里改用"域名台账"之外的
+	// 最简单路径：调用 list_certificates 不写审计，所以直接验证 T13 之外的
+	// 审计需要真实副作用——用 import_certificate（PEM 可由 openssl 生成）。
+	certPEM, keyPEM := genTestPairE2E(t)
+	resp := mcpCallAPI(t, base+"/mcp", rwToken, 1, "tools/call", map[string]any{
+		"name": "import_certificate",
+		"arguments": map[string]any{
+			"domains":     []string{"auditattr.example.com"},
+			"certificate": certPEM,
+			"private_key": keyPEM,
+		},
+	})
+	if nestedBool(t, resp, "result.isError") {
+		t.Fatalf("import_certificate 应成功: %s", mustJSON(t, resp))
+	}
+	t.Log("MCP import_certificate 成功")
+
+	// ---------- 2. 审计日志应含该操作且用户是 admin ----------
+	logs := doJSON(t, http.MethodGet, base+"/api/v1/audit-logs?limit=50", "Bearer "+token, nil, nil)
+	items, _ := logs["items"].([]any)
+	if len(items) == 0 {
+		t.Fatalf("审计日志为空: %s", mustJSON(t, logs))
+	}
+	var importEntry map[string]any
+	for _, it := range items {
+		m, _ := it.(map[string]any)
+		if fmt.Sprint(m["action"]) == "certificate.import" {
+			importEntry = m
+			break
+		}
+	}
+	if importEntry == nil {
+		t.Fatalf("未找到 cert.import 审计条目: %s", mustJSON(t, logs))
+	}
+	if got := fmt.Sprint(importEntry["username"]); got != "admin" {
+		t.Fatalf("MCP 操作的审计用户名应为 admin（token 所有者），got %q", got)
+	}
+	if got := fmt.Sprint(importEntry["user_id"]); got == "" {
+		t.Fatal("审计 user_id 不应为空")
+	}
+	t.Logf("MCP 审计归属正确: username=%s user_id=%s", importEntry["username"], importEntry["user_id"])
+
+	// ---------- 3. REST 通道同样受益 ----------
+	// 通过 REST 删除该证书（AuditCertDelete），验证用户名同样是 admin
+	certID := ""
+	if d := nestedArray(t, resp, "result"); len(d) > 0 {
+		_ = d
+	}
+	// 从列表里取刚导入的证书 ID（该端点 data 为数组，不能走 doJSON）
+	lst, lbody := mcpRestGet(t, base+"/api/v1/certificates", "Bearer "+token)
+	if lst != http.StatusOK {
+		t.Fatalf("列出证书失败: %d %s", lst, lbody)
+	}
+	var listEnv struct {
+		Data []map[string]any `json:"data"`
+	}
+	if err := json.Unmarshal([]byte(lbody), &listEnv); err != nil {
+		t.Fatalf("解析证书列表失败: %v body=%s", err, lbody)
+	}
+	for _, m := range listEnv.Data {
+		if fmt.Sprint(m["primary_domain"]) == "auditattr.example.com" {
+			certID = fmt.Sprint(m["id"])
+		}
+	}
+	if certID == "" {
+		t.Fatal("未找到刚导入的证书")
+	}
+	st, body := mcpRestDelete(t, base+"/api/v1/certificates/"+certID, "Bearer "+token)
+	if st != http.StatusOK {
+		t.Fatalf("REST 删除证书失败: %d %s", st, body)
+	}
+
+	logs = doJSON(t, http.MethodGet, base+"/api/v1/audit-logs?limit=50", "Bearer "+token, nil, nil)
+	items, _ = logs["items"].([]any)
+	var delEntry map[string]any
+	for _, it := range items {
+		m, _ := it.(map[string]any)
+		if fmt.Sprint(m["action"]) == "certificate.delete" {
+			delEntry = m
+			break
+		}
+	}
+	if delEntry == nil {
+		t.Fatal("未找到 cert.delete 审计条目")
+	}
+	if got := fmt.Sprint(delEntry["username"]); got != "admin" {
+		t.Fatalf("REST 操作的审计用户名应为 admin，got %q", got)
+	}
+	t.Logf("REST 审计归属正确: username=%s", delEntry["username"])
+}
+
 // ---------- 辅助 ----------
 
 func waitHealthy(t *testing.T, base string) {
@@ -591,3 +755,62 @@ func mustJSON(t *testing.T, v any) string {
 
 // 保证 context 包被使用（辅助函数预留）
 var _ = context.Background
+
+// genTestPairE2E 生成自签证书与私钥 PEM（ECDSA P256），供导入测试使用。
+func genTestPairE2E(t *testing.T) (certPEM, keyPEM string) {
+	t.Helper()
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tmpl := &x509.Certificate{
+		SerialNumber: big.NewInt(time.Now().UnixNano()),
+		Subject:      pkix.Name{CommonName: "auditattr.example.com"},
+		DNSNames:     []string{"auditattr.example.com"},
+		NotBefore:    time.Now().Add(-time.Hour),
+		NotAfter:     time.Now().Add(90 * 24 * time.Hour),
+		KeyUsage:     x509.KeyUsageDigitalSignature,
+	}
+	der, err := x509.CreateCertificate(rand.Reader, tmpl, tmpl, &key.PublicKey, key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	keyDER, err := x509.MarshalECPrivateKey(key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der})),
+		string(pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: keyDER}))
+}
+
+// mcpRestDelete 带认证的 DELETE
+func mcpRestDelete(t *testing.T, url, auth string) (int, string) {
+	t.Helper()
+	req, _ := http.NewRequest(http.MethodDelete, url, nil)
+	if auth != "" {
+		req.Header.Set("Authorization", auth)
+	}
+	resp, err := (&http.Client{Timeout: 30 * time.Second}).Do(req)
+	if err != nil {
+		t.Fatalf("DELETE %s: %v", url, err)
+	}
+	defer resp.Body.Close()
+	rb, _ := io.ReadAll(resp.Body)
+	return resp.StatusCode, string(rb)
+}
+
+// mcpRestGet 带认证的 GET，返回状态码与原始响应体
+func mcpRestGet(t *testing.T, url, auth string) (int, string) {
+	t.Helper()
+	req, _ := http.NewRequest(http.MethodGet, url, nil)
+	if auth != "" {
+		req.Header.Set("Authorization", auth)
+	}
+	resp, err := (&http.Client{Timeout: 30 * time.Second}).Do(req)
+	if err != nil {
+		t.Fatalf("GET %s: %v", url, err)
+	}
+	defer resp.Body.Close()
+	rb, _ := io.ReadAll(resp.Body)
+	return resp.StatusCode, string(rb)
+}

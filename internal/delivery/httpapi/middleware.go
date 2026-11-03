@@ -78,7 +78,9 @@ func (h *Handler) authenticate(next http.Handler) http.Handler {
 				writeError(w, r, http.StatusForbidden, "首次登录需先修改初始密码")
 				return
 			}
-			next.ServeHTTP(w, r.WithContext(withUser(r.Context(), &principal{User: fresh, TokenType: "jwt"})))
+			ctx := withUser(r.Context(), &principal{User: fresh, TokenType: "jwt"})
+			// 审计归属：让 application 层的 auditAction 能取到真实用户（T11）
+			next.ServeHTTP(w, r.WithContext(domain.WithActor(ctx, fresh)))
 			return
 		}
 		// API Token 认证（程序化客户端）
@@ -102,7 +104,9 @@ func (h *Handler) authenticate(next http.Handler) http.Handler {
 				writeError(w, r, http.StatusForbidden, "Token 无权执行该操作（需要 scope: "+required+"）")
 				return
 			}
-			next.ServeHTTP(w, r.WithContext(withUser(r.Context(), &principal{User: user, TokenType: "apitoken", TokenScopes: token.Scopes})))
+			ctx := withUser(r.Context(), &principal{User: user, TokenType: "apitoken", TokenScopes: token.Scopes})
+			// 审计归属：API Token 的操作记到令牌所有者（T11）
+			next.ServeHTTP(w, r.WithContext(domain.WithActor(ctx, user)))
 			return
 		}
 		writeError(w, r, http.StatusUnauthorized, "未认证")

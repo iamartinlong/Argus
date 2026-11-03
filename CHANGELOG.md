@@ -18,6 +18,12 @@
   - 顺带修复：`webassets` 的 SPA 回退此前会把 `/mcp` 当前端路由返回 index.html，导致挂载不生效
   - 测试：e2e 覆盖未认证 401、管理员 12 工具、只读 token 工具集收敛（写工具不可见）、`X-API-Token` 认证、恶意 Origin 403、`mcp.enabled=false` 时 404
   - 文档站 MCP 指南新增「方式三：HTTP 直连」与 OpenCode / Codex 配置示例
+### 修复
+
+- **审计归属：证书/账户/联系人/部署操作不再一律记 `system`**（T11）。此前 `CertificateService`/`AccountService`/`ContactService` 的 `auditAction` 与 `DeployService.auditAction` 全部收 nil actor，导致 **REST 与 MCP 两个通道**的签发/续期/吊销/导入/删除/部署/账户/联系人操作全部丢失用户归属，审计日志无法追溯"谁做的"
+  - 机制：新增 `domain.WithActor`/`ActorFrom`（上下文传递操作者）；`authenticate` 中间件在认证成功后注入（API Token 记到令牌所有者）；application 层 `resolveActor` 以「显式 actor → 上下文 actor → system」优先级解析
+  - `DomainService` 等已有的显式 actor 用法不受影响（显式优先）；调度器、CLI 本地模式等无人格触发源仍记 `system`
+  - 测试：单测覆盖解析优先级与两种服务的 `auditAction`；e2e 双通道验证（MCP `import_certificate` 与 REST 删除证书的审计用户名均为 `admin` 且 user_id 非空）
 
 ## [1.4.0] - 2026-11-03
 
