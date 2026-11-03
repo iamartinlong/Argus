@@ -12,7 +12,7 @@
 | 仓库同步 | GitHub `iamartinlong/Argus`（主）+ 内网 gitea（`origin`，main + tag 同步） |
 | CI | 4 job（Go vet+test / Web typecheck+build / Cross-build / Docs Pages）+ Release（tag 触发，6 平台 zip + SHA256SUMS） |
 | 未发布改动 | 无（CHANGELOG 无 `[未发布]` 段） |
-| 本地开发实例 | 运行中：`127.0.0.1:8443`，数据用仓库 `data/argus.db`（见 §5） |
+| 本地开发实例 | **已关闭**（2026-11-03）：8443 服务已停、端口释放、浏览器标签页已关；临时配置 `%TEMP%\opencode\argus-web\` 保留备用。数据 `data/argus.db` 原样保留（含 `admin` 账号） |
 
 ## 2. 本次工作日志
 
@@ -67,7 +67,7 @@ CHANGELOG `[未发布]` 转正 → `root.go` version 1.3.0→1.4.0 → commit �
 |---|---|---|---|
 | T1 | **WS2016 生产环境升级 v1.4.0** | 升级 = 替换二进制 + 重启，迁移自动；务必先 `argus backup`。注意：生产机密码用户侧持有，如需重置走 `argus reset-password` | 用户侧操作 |
 | T2 | **M2 规划与实施** | HTTP streamable HTTP 传输 + resources/prompts + OAuth 评估，约 2–3 天。**必须先处理 SDK 的 DNS rebinding CVE 与授权模型**（stdio 无此问题，HTTP 有） | 待排期 |
-| T3 | 清理本地开发实例 | 8443 服务与 `%TEMP%\opencode\argus-web\` 配置（见 §5）；不需要时停掉 | 随时 |
+| T3 | ~~清理本地开发实例~~ | **已完成（2026-11-03）**：8443 服务已停、进程无残留、端口已释放、浏览器标签页已关；临时配置 `%TEMP%\opencode\argus-web\` 保留备用（启动脚本见 §5）。数据 `data/argus.db` 原样保留 | ✅ |
 
 ### P2 — 可选增强
 
@@ -141,6 +141,9 @@ powershell -ExecutionPolicy Bypass -File $env:TEMP\opencode\argus-mcp-verify.ps1
 | 数据 | 仓库 `data/argus.db`（gitignore；**库里基本是空的**，只有 admin 用户） |
 | 管理员 | `admin` / `DevReset2026Argus`（开发环境临时值，≥12 位含大小写数字） |
 | 启动脚本 | `%TEMP%\opencode\argus-web-start.ps1` |
+| **当前状态** | **已停止**（2026-11-03）：进程已终止、8443 已释放、浏览器标签页已关；上述配置与数据保留，随时可重启 |
+
+重启：`powershell -ExecutionPolicy Bypass -File %TEMP%\opencode\argus-web-start.ps1`（脚本自带健康检查等待）
 
 停掉：`Get-CimInstance Win32_Process -Filter "Name='argus.exe'" | ? { $_.CommandLine -like "*argus-web*" } | % { Stop-Process -Id $_.ProcessId -Force }`
 
