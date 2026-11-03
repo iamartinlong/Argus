@@ -88,9 +88,142 @@ func (o *RemoteOps) do(method, path string, body any, out any) error {
 	return nil
 }
 
+// ---------------- REST 响应 DTO ----------------
+// domain 实体不带 json tag（整洁架构约束），而下划线字段（not_after 等）无法
+// 大小写不敏感匹配，故远程模式用 DTO 接收再转换，与 REST 响应结构一一对应。
+
+type accountDTO struct {
+	ID       string `json:"id"`
+	Name     string `json:"name"`
+	Provider string `json:"provider"`
+	Status   string `json:"status"`
+}
+
+type certDTO struct {
+	ID              string   `json:"id"`
+	Domains         []string `json:"domains"`
+	PrimaryDomain   string   `json:"primary_domain"`
+	Provider        string   `json:"provider"`
+	Status          string   `json:"status"`
+	IssuerCA        string   `json:"issuer_ca"`
+	NotBefore       string   `json:"not_before"`
+	NotAfter        string   `json:"not_after"`
+	Verification    string   `json:"verification"`
+	DeployTargetIDs []string `json:"deploy_target_ids"`
+	NotifyEvents    []string `json:"notify_events"`
+	ContactName     string   `json:"contact_name"`
+	ContactEmail    string   `json:"contact_email"`
+	ContactPhone    string   `json:"contact_phone"`
+	DomainID        string   `json:"domain_id"`
+	DomainName      string   `json:"domain_name"`
+	LastError       string   `json:"last_error"`
+	CreatedAt       string   `json:"created_at"`
+	UpdatedAt       string   `json:"updated_at"`
+}
+
+func (d certDTO) toDomain() *domain.Certificate {
+	events := make([]domain.NotificationEvent, 0, len(d.NotifyEvents))
+	for _, e := range d.NotifyEvents {
+		events = append(events, domain.NotificationEvent(e))
+	}
+	return &domain.Certificate{
+		ID:                  d.ID,
+		Domains:             d.Domains,
+		PrimaryDomain:       d.PrimaryDomain,
+		Provider:            d.Provider,
+		Status:              domain.CertificateStatus(d.Status),
+		IssuerCA:            d.IssuerCA,
+		NotBefore:           parseTime(d.NotBefore),
+		NotAfter:            parseTime(d.NotAfter),
+		Verification:        domain.VerificationType(d.Verification),
+		DeployTargetIDs:     d.DeployTargetIDs,
+		NotifyEvents:        events,
+		ContactName:         d.ContactName,
+		ContactEmail:        d.ContactEmail,
+		ContactPhone:        d.ContactPhone,
+		DomainID:            d.DomainID,
+		DomainName:          d.DomainName,
+		LastError:           d.LastError,
+		CreatedAt:           parseTime(d.CreatedAt),
+		UpdatedAt:           parseTime(d.UpdatedAt),
+	}
+}
+
+func parseTime(s string) time.Time {
+	if s == "" {
+		return time.Time{}
+	}
+	t, err := time.Parse(time.RFC3339, s)
+	if err != nil {
+		return time.Time{}
+	}
+	return t
+}
+
+type targetDTO struct {
+	ID         string `json:"id"`
+	Name       string `json:"name"`
+	Type       string `json:"type"`
+	Enabled    bool   `json:"enabled"`
+	LastStatus string `json:"last_status"`
+	LastError  string `json:"last_error"`
+	CreatedAt  string `json:"created_at"`
+}
+
+func (d targetDTO) toDomain() *domain.DeployTarget {
+	return &domain.DeployTarget{
+		ID:         d.ID,
+		Name:       d.Name,
+		Type:       domain.DeployTargetType(d.Type),
+		Enabled:    d.Enabled,
+		LastStatus: d.LastStatus,
+		LastError:  d.LastError,
+		CreatedAt:  parseTime(d.CreatedAt),
+	}
+}
+
+type agentDTO struct {
+	ID       string `json:"id"`
+	Name     string `json:"name"`
+	Status   string `json:"status"`
+	Enabled  bool   `json:"enabled"`
+	Version  string `json:"version"`
+	OS       string `json:"os"`
+	CreatedAt string `json:"created_at"`
+}
+
+func (d agentDTO) toDomain() *domain.Agent {
+	return &domain.Agent{
+		ID:        d.ID,
+		Name:      d.Name,
+		Status:    d.Status,
+		Enabled:   d.Enabled,
+		Version:   d.Version,
+		OS:        d.OS,
+		CreatedAt: parseTime(d.CreatedAt),
+	}
+}
+
+type taskLogDTO struct {
+	ID        string `json:"id"`
+	Type      string `json:"type"`
+	Status    string `json:"status"`
+	Detail    string `json:"detail"`
+	StartedAt string `json:"started_at"`
+}
+
+func (d taskLogDTO) toDomain() *domain.TaskLog {
+	return &domain.TaskLog{
+		ID:        d.ID,
+		Type:      domain.TaskType(d.Type),
+		Status:    domain.TaskStatus(d.Status),
+		Detail:    d.Detail,
+		StartedAt: parseTime(d.StartedAt),
+	}
+}
+
 // remoteError 把 HTTP 状态/错误码映射为 domain 错误（与本地语义一致）。
-func remoteError(status int, code, msg string) error {
-	switch {
+func remoteError(status int, code, msg string) error {	switch {
 	case status == http.StatusNotFound:
 		return fmt.Errorf("%w: %s", domain.ErrNotFound, msg)
 	case status == http.StatusConflict:
@@ -109,14 +242,15 @@ func remoteError(status int, code, msg string) error {
 }
 
 func (o *RemoteOps) ListCertificates(ctx context.Context, f ListFilter) ([]*domain.Certificate, error) {
-	var certs []*domain.Certificate
-	if err := o.do(http.MethodGet, "/api/v1/certificates", nil, &certs); err != nil {
+	var dtos []certDTO
+	if err := o.do(http.MethodGet, "/api/v1/certificates", nil, &dtos); err != nil {
 		return nil, err
 	}
 	// REST 列表不支持服务端过滤：客户端过滤（与本地实现同规则）
 	now := time.Now()
-	out := make([]*domain.Certificate, 0, len(certs))
-	for _, c := range certs {
+	out := make([]*domain.Certificate, 0, len(dtos))
+	for _, d := range dtos {
+		c := d.toDomain()
 		c.UpdateStatus(now)
 		if f.Status != "" && string(c.Status) != f.Status {
 			continue
@@ -136,11 +270,11 @@ func (o *RemoteOps) ListCertificates(ctx context.Context, f ListFilter) ([]*doma
 
 func (o *RemoteOps) GetCertificate(ctx context.Context, id, domainName string) (*domain.Certificate, error) {
 	if id != "" {
-		var c domain.Certificate
-		if err := o.do(http.MethodGet, "/api/v1/certificates/"+id, nil, &c); err != nil {
+		var d certDTO
+		if err := o.do(http.MethodGet, "/api/v1/certificates/"+id, nil, &d); err != nil {
 			return nil, err
 		}
-		return &c, nil
+		return d.toDomain(), nil
 	}
 	certs, err := o.ListCertificates(ctx, ListFilter{})
 	if err != nil {
@@ -162,7 +296,7 @@ func (o *RemoteOps) GetCertificate(ctx context.Context, id, domainName string) (
 }
 
 func (o *RemoteOps) IssueCertificate(ctx context.Context, in IssueParams) (*domain.Certificate, error) {
-	var c domain.Certificate
+	var d certDTO
 	err := o.do(http.MethodPost, "/api/v1/certificates", map[string]any{
 		"domains":                 in.Domains,
 		"account_id":              in.AccountID,
@@ -170,11 +304,11 @@ func (o *RemoteOps) IssueCertificate(ctx context.Context, in IssueParams) (*doma
 		"dns_provider_account_id": in.DNSProviderAccountID,
 		"deploy_target_ids":       in.DeployTargetIDs,
 		"notify_events":           in.NotifyEvents,
-	}, &c)
+	}, &d)
 	if err != nil {
 		return nil, err
 	}
-	return &c, nil
+	return d.toDomain(), nil
 }
 
 func (o *RemoteOps) RenewCertificate(ctx context.Context, id, domainName string) (*domain.Certificate, error) {
@@ -182,13 +316,13 @@ func (o *RemoteOps) RenewCertificate(ctx context.Context, id, domainName string)
 	if err != nil {
 		return nil, err
 	}
-	var c domain.Certificate
+	var d certDTO
 	if err := o.do(http.MethodPost, "/api/v1/certificates/"+cert.ID+"/renew", map[string]any{
 		"dns_provider_account_id": cert.DNSProviderAccountID,
-	}, &c); err != nil {
+	}, &d); err != nil {
 		return nil, err
 	}
-	return &c, nil
+	return d.toDomain(), nil
 }
 
 func (o *RemoteOps) RevokeCertificate(ctx context.Context, id, domainName string) error {
@@ -200,26 +334,30 @@ func (o *RemoteOps) RevokeCertificate(ctx context.Context, id, domainName string
 }
 
 func (o *RemoteOps) ImportCertificate(ctx context.Context, in ImportParams) (*domain.Certificate, error) {
-	var c domain.Certificate
+	var d certDTO
 	err := o.do(http.MethodPost, "/api/v1/certificates/import", map[string]any{
 		"domains":       in.Domains,
 		"certificate":   in.Certificate,
 		"private_key":   in.PrivateKey,
 		"verification":  "dns01",
 		"notify_events": []string{},
-	}, &c)
+	}, &d)
 	if err != nil {
 		return nil, err
 	}
-	return &c, nil
+	return d.toDomain(), nil
 }
 
 func (o *RemoteOps) ListTargets(ctx context.Context) ([]*domain.DeployTarget, error) {
-	var targets []*domain.DeployTarget
-	if err := o.do(http.MethodGet, "/api/v1/deploy-targets", nil, &targets); err != nil {
+	var dtos []targetDTO
+	if err := o.do(http.MethodGet, "/api/v1/deploy-targets", nil, &dtos); err != nil {
 		return nil, err
 	}
-	return targets, nil
+	out := make([]*domain.DeployTarget, 0, len(dtos))
+	for _, d := range dtos {
+		out = append(out, d.toDomain())
+	}
+	return out, nil
 }
 
 func (o *RemoteOps) DeployCertificate(ctx context.Context, id, domainName string, targetIDs []string) error {
@@ -274,22 +412,30 @@ func (o *RemoteOps) ListAccounts(ctx context.Context, typ string) ([]AccountBrie
 }
 
 func (o *RemoteOps) ListAgents(ctx context.Context) ([]*domain.Agent, error) {
-	var agents []*domain.Agent
-	if err := o.do(http.MethodGet, "/api/v1/agents", nil, &agents); err != nil {
+	var dtos []agentDTO
+	if err := o.do(http.MethodGet, "/api/v1/agents", nil, &dtos); err != nil {
 		return nil, err
 	}
-	return agents, nil
+	out := make([]*domain.Agent, 0, len(dtos))
+	for _, d := range dtos {
+		out = append(out, d.toDomain())
+	}
+	return out, nil
 }
 
 func (o *RemoteOps) TaskLogs(ctx context.Context, limit int) ([]*domain.TaskLog, error) {
 	if limit <= 0 {
 		limit = 20
 	}
-	var logs []*domain.TaskLog
-	if err := o.do(http.MethodGet, fmt.Sprintf("/api/v1/task-logs?limit=%d", limit), nil, &logs); err != nil {
+	var dtos []taskLogDTO
+	if err := o.do(http.MethodGet, fmt.Sprintf("/api/v1/task-logs?limit=%d", limit), nil, &dtos); err != nil {
 		return nil, err
 	}
-	return logs, nil
+	out := make([]*domain.TaskLog, 0, len(dtos))
+	for _, d := range dtos {
+		out = append(out, d.toDomain())
+	}
+	return out, nil
 }
 
 // DownloadCertificate 远程模式不提供私钥下载：远程无法确认服务端

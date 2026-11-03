@@ -19,6 +19,7 @@
   - 配置段 `mcp.enabled`（M2 HTTP 门禁，默认 false）/ `mcp.allow_key_download`（默认 false）
   - 测试：工具注册矩阵（默认 12 / T13 条件注册 / scope 过滤）、工具调用与缺参错误、stdio e2e（spawn 真实二进制走 initialize → tools/list → tools/call）
   - HTTP streamable HTTP 传输、resources/prompts、OAuth 属 M2，另行排期
+  - 远程模式经真实联调（服务端 + 只读/全权双 token）验证：只读 token 的写操作被服务端 403 拒绝且无副作用，全权 token 的导入/按域名查询/列表正常；修复了远程分支未接线与 REST 响应 DTO 转换两个问题（详见提交说明）
 
 ## [1.3.0] - 2026-11-03
 

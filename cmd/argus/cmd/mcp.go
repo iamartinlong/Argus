@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"fmt"
 	"log"
 
 	"github.com/spf13/cobra"
@@ -24,6 +25,21 @@ Cline、Zed、Claude Desktop 等 AI Agent 调用 Argus 的证书管理能力。
 注意：stdout 是 MCP 协议通道，本命令不向其打印任何日志（诊断信息走 stderr）。
 私钥下载工具默认不注册，需在 config.yaml 配置 mcp.allow_key_download: true。`,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		// 远程模式：经 REST 代理，无需本地库
+		if remoteEnabled() {
+			token := apiToken()
+			if token == "" {
+				return fmt.Errorf("远程模式需要 --token 或环境变量 ARGUS_API_TOKEN")
+			}
+			ops := mcp.NewRemoteOps(mcp.RemoteConfig{
+				BaseURL: remoteServer,
+				Token:   token,
+			})
+			server := mcp.NewServer(ops, version, mcp.Config{})
+			log.Printf("Argus %s MCP Server 启动（stdio → %s）", version, remoteServer)
+			return server.Run(cmd.Context())
+		}
+
 		if configPath == "" {
 			configPath = "config.yaml"
 		}
