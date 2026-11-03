@@ -84,6 +84,19 @@ describe("DomainsPage", () => {
     expect(screen.getByText("域名总数")).toBeInTheDocument()
   })
 
+  it("编辑弹窗：期望状态显示中文标签而非原始 value", async () => {
+    const user = userEvent.setup()
+    apiMock.get.mockResolvedValue({ data: [ledgerItem({ expected_status: "must_have_cert" })] })
+    renderPage()
+    await screen.findByText("www.example.com")
+
+    await user.click(screen.getAllByRole("button", { name: /编辑/ })[0])
+    const dialog = await screen.findByRole("dialog")
+    // 回归：曾直接渲染 value（must_have_cert），用户看不懂
+    expect(within(dialog).getByText("必须有证书（缺失时标红）")).toBeInTheDocument()
+    expect(within(dialog).queryByText("must_have_cert")).not.toBeInTheDocument()
+  })
+
   it("按覆盖状态筛选", async () => {
     const user = userEvent.setup()
     apiMock.get.mockResolvedValue({

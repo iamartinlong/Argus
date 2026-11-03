@@ -50,6 +50,14 @@ const dnsAccountSchema = z.object({
 
 type DnsAccountForm = z.infer<typeof dnsAccountSchema>
 
+// DNS 提供商选项：items 与下拉项共用，保证触发器显示 label 而非 value
+const DNS_PROVIDER_OPTIONS: { value: DnsAccountForm["provider"]; label: string }[] = [
+  { value: "alidns", label: "阿里云 DNS (alidns)" },
+  { value: "cloudflare", label: "Cloudflare" },
+  { value: "dnspod", label: "DNSPod (腾讯云)" },
+  { value: "godaddy", label: "GoDaddy" },
+]
+
 export function DnsAccountsPage() {
   const queryClient = useQueryClient()
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -264,15 +272,17 @@ export function DnsAccountsPage() {
                 value={watch("provider")}
                 onValueChange={(v) => setValue("provider", v as DnsAccountForm["provider"])}
                 disabled={!!editing}
+                items={DNS_PROVIDER_OPTIONS}
               >
                 <SelectTrigger className="w-full">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="alidns">阿里云 DNS (alidns)</SelectItem>
-                  <SelectItem value="cloudflare">Cloudflare</SelectItem>
-                  <SelectItem value="dnspod">DNSPod (腾讯云)</SelectItem>
-                  <SelectItem value="godaddy">GoDaddy</SelectItem>
+                  {DNS_PROVIDER_OPTIONS.map((o) => (
+                    <SelectItem key={o.value} value={o.value}>
+                      {o.label}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
               {editing && <p className="text-xs text-muted-foreground">创建后不可修改，如需更换请新建</p>}

@@ -80,6 +80,12 @@ const FILTERS: { value: "all" | DomainCoverage; label: string }[] = [
   { value: "monitor", label: "仅关注" },
 ]
 
+// 期望状态选项：items 与下拉项共用，保证触发器显示的是 label 而非 value
+const EXPECTED_OPTIONS: { value: DomainExpectedStatus; label: string }[] = [
+  { value: "must_have_cert", label: "必须有证书（缺失时标红）" },
+  { value: "monitor_only", label: "仅关注（不要求证书）" },
+]
+
 const DEFAULT_VALUES: DomainForm = {
   name: "",
   expected_status: "must_have_cert",
@@ -187,7 +193,7 @@ export function DomainsPage() {
         <CardTitle>域名管理</CardTitle>
         <div className="flex gap-2">
           <RefreshButton fetching={isFetching} onClick={refresh} />
-          <Select value={filter} onValueChange={(v) => setFilter((v ?? "all") as "all" | DomainCoverage)}>
+          <Select value={filter} onValueChange={(v) => setFilter((v ?? "all") as "all" | DomainCoverage)} items={FILTERS}>
             <SelectTrigger className="w-36">
               <SelectValue placeholder="覆盖状态" />
             </SelectTrigger>
@@ -366,13 +372,17 @@ export function DomainsPage() {
               <Select
                 value={watch("expected_status")}
                 onValueChange={(v) => setValue("expected_status", (v ?? "must_have_cert") as DomainExpectedStatus)}
+                items={EXPECTED_OPTIONS}
               >
                 <SelectTrigger className="w-full">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="must_have_cert">必须有证书（缺失时标红）</SelectItem>
-                  <SelectItem value="monitor_only">仅关注（不要求证书）</SelectItem>
+                  {EXPECTED_OPTIONS.map((o) => (
+                    <SelectItem key={o.value} value={o.value}>
+                      {o.label}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>

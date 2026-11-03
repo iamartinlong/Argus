@@ -46,6 +46,21 @@ interface ScanSummary {
   duration_ms?: number
 }
 
+// 筛选选项：items 与下拉项共用，保证触发器显示 label 而非 value
+const TASK_TYPE_OPTIONS = [
+  { value: "all", label: "全部类型" },
+  { value: "scan_certificates", label: "证书扫描" },
+  { value: "auto_renew", label: "自动续期" },
+  { value: "expiry_notify", label: "到期提醒" },
+]
+
+const TASK_STATUS_OPTIONS = [
+  { value: "all", label: "全部" },
+  { value: "success", label: "成功" },
+  { value: "failed", label: "失败" },
+  { value: "running", label: "运行中" },
+]
+
 interface TaskLog {
   id: string
   type: string
@@ -133,22 +148,24 @@ export function TaskLogsPage() {
         <CardTitle>任务日志</CardTitle>
         <div className="flex gap-2 items-center">
           <RefreshButton fetching={isFetching} onClick={refresh} />
-          <Select value={typeFilter} onValueChange={(v) => setTypeFilter(v ?? "all")}>
+          <Select value={typeFilter} onValueChange={(v) => setTypeFilter(v ?? "all")} items={TASK_TYPE_OPTIONS}>
             <SelectTrigger className="w-36"><SelectValue placeholder="类型" /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">全部类型</SelectItem>
-              <SelectItem value="scan_certificates">证书扫描</SelectItem>
-              <SelectItem value="auto_renew">自动续期</SelectItem>
-              <SelectItem value="expiry_notify">到期提醒</SelectItem>
+              {TASK_TYPE_OPTIONS.map((o) => (
+                <SelectItem key={o.value} value={o.value}>
+                  {o.label}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
-          <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v ?? "all")}>
+          <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v ?? "all")} items={TASK_STATUS_OPTIONS}>
             <SelectTrigger className="w-28"><SelectValue placeholder="状态" /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">全部</SelectItem>
-              <SelectItem value="success">成功</SelectItem>
-              <SelectItem value="failed">失败</SelectItem>
-              <SelectItem value="running">运行中</SelectItem>
+              {TASK_STATUS_OPTIONS.map((o) => (
+                <SelectItem key={o.value} value={o.value}>
+                  {o.label}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
           <Button variant="outline" onClick={exportCSV}>
