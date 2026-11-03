@@ -13,9 +13,9 @@ import (
 
 // 工具所需 scope 常量（与 REST API Token 语义完全一致）
 const (
-	scopeCertRead   = domain.ScopeCertRead
-	scopeCertWrite  = domain.ScopeCertWrite
-	scopeDeployRead = domain.ScopeDeployRead
+	scopeCertRead    = domain.ScopeCertRead
+	scopeCertWrite   = domain.ScopeCertWrite
+	scopeDeployRead  = domain.ScopeDeployRead
 	scopeDeployWrite = domain.ScopeDeployWrite
 	scopeAccountRead = domain.ScopeAccountRead
 	scopeAdminRead   = domain.ScopeAdminRead
@@ -355,6 +355,10 @@ func (s *Server) addTool(name string) {
 			if err != nil {
 				return toolError(err)
 			}
+			// 私钥下载必须留痕（与 REST 的 authorizeKeyAccess 对齐）
+			if s.cfg.AuditKeyDownload != nil {
+				s.cfg.AuditKeyDownload(ctx, in.ID, in.Format)
+			}
 			// 私钥内容不外泄到对话文本：返回文件名与大小，内容经审计后另行分发
 			return toolOK(map[string]any{
 				"filename": filename,
@@ -382,16 +386,16 @@ func certBrief(c *domain.Certificate, now time.Time) map[string]any {
 		days = int64(c.NotAfter.Sub(now).Hours() / 24)
 	}
 	return map[string]any{
-		"id":              c.ID,
-		"domains":         c.Domains,
-		"primary_domain":  c.PrimaryDomain,
-		"provider":        c.Provider,
-		"status":          string(c.Status),
-		"not_before":      c.NotBefore,
-		"not_after":       c.NotAfter,
-		"days_to_expire":  days,
-		"verification":    string(c.Verification),
-		"deploy_targets":  c.DeployTargetIDs,
+		"id":             c.ID,
+		"domains":        c.Domains,
+		"primary_domain": c.PrimaryDomain,
+		"provider":       c.Provider,
+		"status":         string(c.Status),
+		"not_before":     c.NotBefore,
+		"not_after":      c.NotAfter,
+		"days_to_expire": days,
+		"verification":   string(c.Verification),
+		"deploy_targets": c.DeployTargetIDs,
 	}
 }
 

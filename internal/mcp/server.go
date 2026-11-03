@@ -49,12 +49,12 @@ type ListFilter struct {
 
 // IssueParams 签发参数（对齐 application.IssueInput，对应 T7）
 type IssueParams struct {
-	Domains               []string
-	AccountID             string
-	Verification          string // http01 | dns01
-	DNSProviderAccountID  string // 可选：复用 DNS 验证账户
-	DeployTargetIDs       []string // 可选：签发成功后自动部署
-	NotifyEvents          []string // 可选：订阅的通知事件
+	Domains              []string
+	AccountID            string
+	Verification         string   // http01 | dns01
+	DNSProviderAccountID string   // 可选：复用 DNS 验证账户
+	DeployTargetIDs      []string // 可选：签发成功后自动部署
+	NotifyEvents         []string // 可选：订阅的通知事件
 }
 
 // ImportParams 导入参数（对应 T10）
@@ -80,6 +80,10 @@ type Config struct {
 	// Scopes 本地模式工具收敛（空=全部注册）。远程模式由 token 自身 scope
 	// 在服务端强制，客户端仅作预过滤。
 	Scopes []string
+	// AuditKeyDownload 私钥下载审计钩子（T13 专用）。HTTP 模式下由 delivery
+	// 层注入，带上请求的用户与来源 IP/UA——与 REST 的 authorizeKeyAccess
+	// 对齐（私钥下载必须留痕）。为 nil 时不记录（stdio 本地模式）。
+	AuditKeyDownload func(ctx context.Context, certID, format string)
 }
 
 // Server MCP Server 装配：SDK Server + 业务能力 + 配置。

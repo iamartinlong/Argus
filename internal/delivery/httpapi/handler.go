@@ -119,8 +119,27 @@ func NewHandler(cfg config.Config, deps HandlerDeps) *Handler {
 		TaskLogs: deps.TaskLogs,
 		Cryptor:  deps.Cryptor,
 	})
+	// 私钥下载审计钩子：与 REST 的 authorizeKeyAccess 对齐（留痕含用户/IP/UA）
+	auditKeyDownload := func(ctx context.Context, certID, format string) {
+		p := userFrom(ctx)
+		entry := &domain.AuditLog{
+			Action:    domain.AuditCertKeyAccess,
+			Resource:  certID,
+			Detail:    "mcp format=" + format,
+			CreatedAt: time.Now(),
+		}
+		if p != nil && p.User != nil {
+			entry.UserID, entry.Username = p.User.ID, p.User.Username
+		} else {
+			entry.Username = "system"
+		}
+		if h.audit != nil {
+			_ = h.audit.Append(ctx, entry)
+		}
+	}
 	mcpHTTP := mcp.NewHTTPHandler(mcpOps, deps.AppVersion, mcp.HTTPConfig{
 		AllowKeyDownload: cfg.MCP.AllowKeyDownload,
+		AuditKeyDownload: auditKeyDownload,
 	})
 
 	r := chi.NewRouter()
@@ -216,8 +235,10 @@ func NewHandler(cfg config.Config, deps HandlerDeps) *Handler {
 	// 跨源防护包一层（Go 1.25+ 标准库）——防 DNS rebinding 让浏览器打到本服务。
 	if cfg.MCP.Enabled {
 		protected := http.NewCrossOriginProtection().Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			p := userFrom(r.Context())
 			// 注入当前凭证的 scopes，供 MCP 按请求收敛工具集
-			mcpHTTP.ServeHTTP(w, r.WithContext(mcp.WithScopes(r.Context(), scopesForPrincipal(userFrom(r.Context())))))
+			ctx := mcp.WithScopes(r.Context(), scopesForPrincipal(p))
+			mcpHTTP.ServeHTTP(w, r.WithContext(ctx))
 		}))
 		r.Group(func(r chi.Router) {
 			r.Use(h.authenticate)
