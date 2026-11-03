@@ -1,6 +1,8 @@
 # 实施计划：MCP 服务（v1 / M1）
 
 > 关联需求：[10-mcp-requirements.md](10-mcp-requirements.md) · 状态：待评审 · 范围：**仅 stdio（本地+远程）+ 12+1 工具**，HTTP 传输与 resources/prompts 属 M2（本文档占位说明，不在本次实施）
+>
+> **v1.1 修订（2026-11-03）**：M1c 增加 Web 静态指南页任务（c4b，FR-7/D9）；工时 4 → 4.5 天。
 
 ## 1. 里程碑拆分
 
@@ -34,6 +36,7 @@
 | c2 | stdio e2e（`-tags integration` 或 e2e 包）：spawn `argus mcp` 子进程，走 initialize→tools/list→tools/call（list/issue/deploy 各一） | internal/tests/e2e/mcp_test.go |
 | c3 | `config.go` 增 `MCPConfig{Enabled, AllowKeyDownload}` + `Default()` + `Validate()`；`config.yaml.example` 同步 | config.go/example |
 | c4 | 文档：`site-docs/docs/guide/mcp.md`（Claude Code/Cline/Zed/Claude Desktop 配置示例、scope 申请、安全注意事项、排障） | mcp.md + sidebar/nav |
+| c4b | Web 静态指南页：`web/src/features/mcp/mcp-guide-page.tsx`（连接命令一键复制 + 工具清单 + scope 说明 + 跳转 API Token 页）；`router.tsx` / `nav.ts`（系统分组）接入；页面标注"完整说明见文档站"（FR-7 / D9） | mcp-guide-page.tsx + 路由/菜单 |
 | c5 | README「特性」与「快速开始」增 MCP 入口；CHANGELOG `[未发布]` 条目 | README/CHANGELOG |
 | c6 | 全量验证：`go vet` / `go test ./...` / `npm run build` / CI；推送后按 AC 逐条复核 | 验证记录 |
 
@@ -49,7 +52,8 @@ internal/mcp/ops_remote.go    # 远程实现（REST 代理）
 internal/mcp/tools_test.go    # 参数/scope/错误映射单测
 cmd/argus/cmd/mcp.go          # argus mcp 子命令
 internal/tests/e2e/mcp_test.go# stdio e2e
-site-docs/docs/guide/mcp.md   # 连接指南
+site-docs/docs/guide/mcp.md   # 连接指南（唯一事实源）
+web/src/features/mcp/mcp-guide-page.tsx  # Web 静态指南页（FR-7/D9，摘要 + 复制）
 ```
 
 **修改**
@@ -60,11 +64,13 @@ cmd/argus/cmd/root.go              # 注册 mcpCmd
 internal/config/config.go          # + MCPConfig 段（Default/Validate）
 config.yaml.example                # + mcp 示例（注释默认关闭）
 site-docs/docs/.vitepress/config.mjs# guide 下加入口
+web/src/router.tsx                 # + mcp 指南页路由（系统分组）
+web/src/lib/nav.ts                 # 系统分组 + MCP 入口
 README.md / CHANGELOG.md           # 功能说明与变更记录
 docs/plan/README.md                # 索引登记（本文档两篇）
 ```
 
-**明确不改**：`internal/delivery/httpapi/*`（MCP 不经 httpapi；M2 挂载时再动）、`web/*`、数据库 schema。
+**明确不改**：`internal/delivery/httpapi/*`（MCP 不经 httpapi；M2 挂载时再动）、数据库 schema、既有 Web 功能（仅**新增**一个静态指南页，见 FR-7）。
 
 ## 3. 接口设计草案
 
@@ -131,9 +137,11 @@ type CertOps interface {
 
 `site-docs/docs/guide/mcp.md` 结构：是什么 → 快速开始（Claude Code 一行命令）→ 客户端配置示例（Claude Code / Cline / Zed / Claude Desktop）×（本地/远程）→ 工具清单表 → scope 申请与最小权限建议 → 安全注意事项（私钥/不可逆操作/token 保管）→ 排障（stdout 日志冲突、权限不足、连接失败）。
 
+Web 静态指南页（`mcp-guide-page.tsx`）结构：是什么（3 句）→ 连接命令卡片（本地/远程两个，一键复制）→ 工具清单表（13 个，标注所需 scope 与默认关闭项）→ 「创建 API Token」跳转按钮 → 「查看完整文档」外链文档站。零服务端交互；文案与文档站同步（文档站为唯一事实源）。
+
 ## 7. Definition of Done
 
-- [ ] 需求文档 8 项验收标准（AC1–AC7）逐条通过并记录
+- [ ] 需求文档 8 项验收标准（AC1–AC8）逐条通过并记录
 - [ ] `go vet ./...` / `go test ./...` / `npm run build` / CI 全绿
 - [ ] 文档站 MCP 指南上线（Pages 自动部署后可访问）
 - [ ] CHANGELOG `[未发布]` 记录；`docs/plan/README.md` 索引登记
@@ -155,6 +163,7 @@ type CertOps interface {
 | M1a 骨架 | 0.5 天 |
 | M1b 工具 | 2 天（13 工具 × 本地/远程双实现） |
 | M1c 测试+文档 | 1.5 天 |
-| 合计 | **约 4 天** |
+| M1c-Web 静态指南页 | 0.5 天（页面 + 路由/菜单 + 与文档站文案对齐） |
+| 合计 | **约 4.5 天** |
 
 M2（HTTP + resources/prompts + OAuth 评估）另行排期，预估 2–3 天。
