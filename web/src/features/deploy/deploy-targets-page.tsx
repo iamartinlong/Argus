@@ -18,6 +18,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import {
   Select,
@@ -597,7 +598,12 @@ function TargetFields({ type, scene, form, agents, onGoToAgents }: TargetFieldsP
       {type === "webhook" && (
         <div className="space-y-2">
           <Label>Webhook URL（必须 https://）</Label>
-          <Input placeholder="https://example.com/hook/cert" {...register("url")} />
+          {/* 长 URL 用 Textarea：单行 Input 显示不全、无法查看全文 */}
+          <Textarea
+            placeholder="https://example.com/hook/cert"
+            className="font-mono text-xs"
+            {...register("url")}
+          />
           <FieldError form={form} name="url" />
         </div>
       )}

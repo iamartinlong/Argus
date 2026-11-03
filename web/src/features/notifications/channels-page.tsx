@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
 import {
   Select,
   SelectContent,
@@ -59,7 +60,7 @@ const channelMeta: Record<string, { name: string }> = {
 interface FieldDef {
   key: string
   label: string
-  type?: "text" | "number" | "password" | "switch"
+  type?: "text" | "number" | "password" | "switch" | "textarea"
   required?: boolean
   placeholder?: string
 }
@@ -74,19 +75,19 @@ const fieldsByType: Record<string, FieldDef[]> = {
     { key: "use_tls", label: "使用隐式 TLS（465 端口）", type: "switch" },
   ],
   webhook: [
-    { key: "url", label: "Webhook URL", required: true, placeholder: "https://example.com/hook" },
+    { key: "url", label: "Webhook URL", type: "textarea", required: true, placeholder: "https://example.com/hook" },
     { key: "secret", label: "签名密钥（可选）", type: "password" },
   ],
   wecom: [
-    { key: "webhook_url", label: "Webhook URL", required: true, placeholder: "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=..." },
+    { key: "webhook_url", label: "Webhook URL", type: "textarea", required: true, placeholder: "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=..." },
     { key: "key", label: "签名密钥（可选）", type: "password" },
   ],
   dingtalk: [
-    { key: "webhook_url", label: "Webhook URL", required: true, placeholder: "https://oapi.dingtalk.com/robot/send?access_token=..." },
+    { key: "webhook_url", label: "Webhook URL", type: "textarea", required: true, placeholder: "https://oapi.dingtalk.com/robot/send?access_token=..." },
     { key: "key", label: "加签 Secret（可选）", type: "password" },
   ],
   feishu: [
-    { key: "webhook_url", label: "Webhook URL", required: true, placeholder: "https://open.feishu.cn/open-apis/bot/v2/hook/..." },
+    { key: "webhook_url", label: "Webhook URL", type: "textarea", required: true, placeholder: "https://open.feishu.cn/open-apis/bot/v2/hook/..." },
   ],
 }
 
@@ -143,7 +144,16 @@ export function ChannelsPage() {
   const buildConfig = (type: string): Record<string, unknown> => {
     return fieldsByType[type].reduce<Record<string, unknown>>((acc, f) => {
       const v = getValues(f.key as never)
-      acc[f.key] = v ?? (f.type === "switch" ? false : "")
+      if (f.type === "switch") {
+        acc[f.key] = v ?? false
+        return acc
+      }
+      // textarea 可能带入粘贴来的换行/首尾空白，URL 类字段必须 trim，否则请求失败
+      if (f.type === "textarea") {
+        acc[f.key] = typeof v === "string" ? (v as string).trim() : (v ?? "")
+        return acc
+      }
+      acc[f.key] = v ?? ""
       return acc
     }, {})
   }
@@ -365,11 +375,21 @@ export function ChannelsPage() {
                       {f.label}
                       {f.required && <span className="text-destructive"> *</span>}
                     </Label>
-                    <Input
-                      type={f.type === "password" ? "password" : f.type === "number" ? "number" : "text"}
-                      placeholder={f.placeholder}
-                      {...register(f.key as never)}
-                    />
+                    {f.type === "textarea" ? (
+                      // 长 URL（webhook 等）用 Textarea：单行 Input 显示不全、无法查看全文；
+                      // field-sizing-content 会随内容自动增高
+                      <Textarea
+                        placeholder={f.placeholder}
+                        className="font-mono text-xs"
+                        {...register(f.key as never)}
+                      />
+                    ) : (
+                      <Input
+                        type={f.type === "password" ? "password" : f.type === "number" ? "number" : "text"}
+                        placeholder={f.placeholder}
+                        {...register(f.key as never)}
+                      />
+                    )}
                     {errors[f.key as keyof typeof errors] && (
                       <p className="text-sm text-destructive">
                         {errors[f.key as keyof typeof errors]?.message}

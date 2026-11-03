@@ -9,6 +9,7 @@
 
 ### 优化
 
+- **长 URL 输入改用 Textarea**：通知渠道的 4 个 Webhook URL 字段（webhook/wecom/dingtalk/feishu）与部署目标的 Webhook URL 从单行 Input 改为 Textarea（随内容自动增高、可查看全文、等宽字体便于辨认参数）；提交时对 textarea 字段 trim，避免粘贴带入的换行导致请求失败
 - **修复下拉框选中后显示原始 value 而非中文标签**（域名期望状态、DNS 提供商、任务日志的类型/状态筛选共 5 处）：根因是 `SelectValue` 未做 value→label 映射。改用 base-ui `Select` 的 `items` 属性（label 单一来源，触发器自动渲染 item 标签，从机制上避免此类不同步），选项数组同时驱动下拉项与触发器
 - **表单下拉为空时的引导**：渠道账户 / 申请人 / 部署目标 / Agent 四类"必须先去别处创建"的下拉，选项为空时不再显示空下拉（或禁用项），改为「说明 + 跳转按钮」（共享组件 `EmptySelectHint`），点击自动关闭当前弹窗并跳到对应管理页
 - **表单下拉宽度统一**：`SelectTrigger` 默认 `w-fit` 在无值时塌成一条细线；所有表单内下拉（签发证书、新建/编辑部署目标、DNS 账户、渠道、通知规则、用户、域名等）统一补 `w-full`

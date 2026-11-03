@@ -115,6 +115,15 @@ const { refreshing, refresh } = useTableRefresh(refetch)
 - **删除确认**：全仓统一原生 `confirm()`（`alert-dialog.tsx` 存在但无业务引用）；提示文案带上影响面（如"N 张证书引用了该域名"）。
 - **时间**：接口给 ISO string，组件内 `new Date(x).toLocaleDateString()/toLocaleString()`；倒计时类用 `whitespace-nowrap`。
 
+### 2.7 长文本 / URL 输入
+
+**URL、签名串、证书 PEM 等长内容一律用 `Textarea`，不要用单行 `Input`**——单行显示不全、无法查看全文、粘贴后难以核对。
+
+- `Textarea` 自带 `field-sizing-content`（随内容自动增高，最小 `min-h-16`），无需手写 rows
+- URL 类加 `className="font-mono text-xs"`：等宽更易辨认参数分隔
+- **提交时必须 trim**：textarea 会带入粘贴来的换行/首尾空白，URL 带换行直接导致请求失败。在 `buildConfig` 之类"提交时读值"的逻辑里按字段类型 trim（密钥类字段不 trim，避免改变用户输入）
+- 已应用：通知渠道 4 个 Webhook URL（webhook/wecom/dingtalk/feishu）、部署目标 Webhook URL。字段驱动型表单（`fieldsByType`）加一个 `type: "textarea"` 分支即可复用
+
 ---
 
 ## 3. 数据层与表单
@@ -185,6 +194,7 @@ features/<域>/<name>-page.tsx
 | 现象 | 根因 | 规则 |
 |---|---|---|
 | 下拉选中后显示 `must_have_cert` 这类原始值 | `SelectValue` 未映射 label | 传 `items`（§2.1） |
+| 长 URL 在单行 Input 里显示不全 | 该用 Textarea 的场景用了 Input | URL/PEM/长串用 Textarea + 提交 trim（§2.7） |
 | 空下拉塌成一条细线 | `SelectTrigger` 默认 `w-fit` | 表单内 `w-full`（§2.1） |
 | 选完域名失焦后文字消失、只剩 × | 单域名提交清了输入框但值没变、同步 effect 不跑 | 提交时同步设置展示值（§2.3 规则 4） |
 | 面板内输入过滤词后点选项，选中项丢失、多了个垃圾 chip | 关闭回调把过滤词当域名提交 | 过滤词关闭时丢弃/恢复（§2.3 规则 2） |
@@ -209,3 +219,4 @@ features/<域>/<name>-page.tsx
 | 版本 | 变更 |
 |---|---|
 | v1（2026-11-03） | 首版。沉淀自 v1.2.0 列表页体验优化、域名管理（D1–D4）+ 独立审计修复、IIS SNI 域名选择器及其 3 个回归修复、空下拉引导、Select label 修复 |
+| v1.1（2026-11-03） | 新增 §2.7 长文本/URL 输入约定（Textarea + 提交 trim + font-mono），坑位清单补对应条目 |
