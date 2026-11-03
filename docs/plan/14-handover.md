@@ -12,7 +12,8 @@
 | 仓库同步 | GitHub `iamartinlong/Argus`（主）+ 内网 gitea（`origin`，main + tag 同步） |
 | CI | 4 job（Go vet+test / Web typecheck+build / Cross-build / Docs Pages）+ Release（tag 触发，6 平台 zip + SHA256SUMS） |
 | 未发布改动 | 无（CHANGELOG 无 `[未发布]` 段） |
-| 测试 | 337 个用例全绿；函数级覆盖率 47.5%（domain 100% / certbundle 86.6% / mcp 60.7%） |
+| 测试 | **353 个用例全绿**；函数级覆盖率 47.6%（domain 100% / certbundle 86.6% / mcp **65.1%**） |
+| MCP 能力 | stdio 本地+远程（v1.4.0）+ **HTTP 传输 /mcp（未发版，见 §2.8）**；resources/prompts/OAuth 未做 |
 | 本地开发实例 | **已关闭**（2026-11-03）：8443 服务已停、端口释放、浏览器标签页已关；临时配置 `%TEMP%\opencode\argus-web\` 保留备用。数据 `data/argus.db` 原样保留（含 `admin` 账号） |
 
 ## 2. 本次工作日志
@@ -79,14 +80,52 @@ CHANGELOG `[未发布]` 转正 → `root.go` version 1.3.0→1.4.0 → commit �
 
 剩余 15 个 0% 全为 `ops_local` 薄委托方法 + `server.go Run`：前者需装配 application 服务栈而业务逻辑已在 application 层覆盖，后者由 stdio e2e 覆盖——**结论是不补**。
 
+### 2.8 M2 第一步：HTTP 传输（`f238da3`）
+
+**需求变更**：用户明确「客户机不会安装 argus 二进制，只会通过 MCP 连接服务器」——stdio 模式（客户端拉起本地子进程）在此场景下不可用，HTTP 传输从可选变为刚需。
+
+| 决策 | 落地 |
+|---|---|
+| 挂载路径 `/mcp` | 与 Web/REST **同端口同 TLS**，不新开端口，反代配置零改动 |
+| Stateless | 每 POST 自包含、无会话亲和性，反代后可水平扩容 |
+| T13 | HTTP 模式下 MCP Server 即 Argus 本体，能读到服务端开关 → 改为「`allow_key_download: true` 才注册」，与 REST 下载接口暴露条件一致（补了 M1 的 T5 缺口） |
+| scope 强制 | SDK 的 `getServer(req)` 钩子按请求构造 Server，用请求凭证的 scopes 过滤工具集；JWT 按角色映射（admin 全量 / operator 证书与部署读写 / readonly 只读，与 REST `requireRole` 一致） |
+
+关键实现文件：`internal/mcp/http.go`（`NewHTTPHandler`）、`httpapi/handler.go`（挂载 + 审计钩子）、`httpapi/middleware.go`（`principal.TokenScopes` + `scopesForPrincipal`）。
+
+**踩到并修掉的坑**：`webassets.Handler` 的 SPA 回退把 `/mcp` 当前端路由，直接返回 index.html——挂载根本不执行（不实测发现不了）。
+
+### 2.9 本地实测（官方 SDK 客户端）
+
+起本地服务端（`mcp.enabled: true` + 只读/全权双 token），用 **SDK 的 Streamable HTTP 客户端**连接：
+
+| 场景 | 结果 |
+|---|---|
+| 只读 token | `tools/list` 6 个（写工具不出现）；`list_certificates`/`list_deploy_targets` 正常 |
+| 全权 token | 12 个（5 个写工具在列）；`list_accounts`/`get_task_logs` 正常；缺参返回工具级错误 |
+| 无效 token | 连接被拒（Unauthorized） |
+
+### 2.10 审计 M2 并修复（`caff1f6`）
+
+安全与质量审计发现 4 项，修复 2 项：
+
+1. **【中】T13 私钥下载在 MCP 下零审计**——REST 有 `authorizeKeyAccess`（含用户/IP/UA），MCP 一个记录都不写。已加 `AuditKeyDownload` 钩子，**仅成功路径触发**（失败尝试不写，避免记成"已下载"）。**关键前提**：先查 SDK 源码确认 `connectStreamable(req.Context(), ...)` 用请求上下文建会话，principal 能穿透到工具 handler——否则审计会静默退化成 `system`。
+2. **【中】每请求重建 Server：1.68ms + 764KB 分配 + 7879 allocs**。已按「scope 集合 + 开关」缓存（稳定键、条目上限 64、mutex 并发保护）。
+3. **【低-中】fail-open 隐患**：principal 缺失时 `hasScope(nil)` 返回 true → 放行全部工具。当前不可达（`authenticate` 必经），但已改为 fail-closed（哨兵 `scopeDenyAll`）。
+4. **【低】MCP 发起的证书操作审计记 `system`**（丢失用户归属）。REST 同样如此，属既有设计；修复需把 actor 穿透整个 service 层，影响面超出发版范围 → **记为已知缺口**。
+
+核查确认无害：`MaxRequestBodyBytes` SDK 默认 4 MiB；stateless 无会话 ID，无 SDK 所述的会话劫持面。
+
+新增 16 个单测 + 1 个 e2e（`TestMCPHTTPKeyDownloadAudit`：开关开→T13 注册、只读 token 看不到 T13、失败调用不产审计）；mcp 覆盖率 60.7% → **65.1%**，总用例 **353 PASS**。
+
 ## 3. 待办（TODO）
 
 ### P1 — 近期
 
 | # | 事项 | 说明 | 负责方 |
 |---|---|---|---|
-| T1 | **WS2016 生产环境升级 v1.4.0** | 升级 = 替换二进制 + 重启，迁移自动；务必先 `argus backup`。注意：生产机密码用户侧持有，如需重置走 `argus reset-password` | 用户侧操作 |
-| T2 | **M2 规划与实施** | HTTP streamable HTTP 传输 + resources/prompts + OAuth 评估，约 2–3 天。**必须先处理 SDK 的 DNS rebinding CVE 与授权模型**（stdio 无此问题，HTTP 有） | 待排期 |
+| T1 | **WS2016 生产环境升级 v1.4.0 并启用 MCP HTTP** | 两步：①升级二进制（先 `argus backup`）；②`config.yaml` 加 `mcp.enabled: true` 并重启。**注意**：v1.4.0 的二进制不含 M2 的 `/mcp` 端点，需用 `f238da3` 之后的构建（或等下一个版本发布） | 用户侧操作 |
+| T2 | **M2 规划与实施** | **HTTP 传输已完成并实测通过**（`f238da3` + 审计修复 `caff1f6`，见 §2.8–2.10）。剩余：**resources / prompts**（把证书清单作为上下文直喂模型、预置巡检提示模板）与 **OAuth 评估**（多用户各自登录授权，替代共享 token；当前 API Token 已够用）。DNS rebinding 已由 SDK 默认防护 + 标准库跨源防护解决，不再是阻塞项 | 待排期 |
 | T3 | ~~清理本地开发实例~~ | **已完成（2026-11-03）**：8443 服务已停、进程无残留、端口已释放、浏览器标签页已关；临时配置 `%TEMP%\opencode\argus-web\` 保留备用（启动脚本见 §5）。数据 `data/argus.db` 原样保留 | ✅ |
 
 ### P2 — 可选增强
@@ -94,12 +133,15 @@ CHANGELOG `[未发布]` 转正 → `root.go` version 1.3.0→1.4.0 → commit �
 | # | 事项 | 说明 |
 |---|---|---|
 | T4 | 文档站同步 JSON 模板 | Web 页已有一键复制 JSON 模板；`guide/mcp.md` 可补同样段落保持两处一致（当前文档站是手写配置示例，内容等价） |
-| T5 | MCP 远程模式 T13 | 当前远程不注册私钥下载工具。若服务端能暴露开关状态（如 `/api/v1/mcp/status`），可改为按服务端实际开关注册 |
+| T5 | ~~MCP 远程模式 T13~~ | **已由 M2 解决**：HTTP 模式下 MCP Server 即 Argus 本体，能直接读到 `mcp.allow_key_download`，改为按开关注册（stdio 的 REST 代理模式仍不注册，因其确实无法确认） |
 | T6 | MCP 工具覆盖面扩展 | 当前 12+1 未含：批量续期/部署、通知规则查询、证书导出。按需增量 |
 | T7 | Playwright E2E 冒烟 | 路线图 P3，M5 预留 |
 | T8 | CLI 子命令补全 | `deploy-target`/`agent`/`notification` 使用频率低，已下调可选 |
 | T9 | `internal/testutil` 拆分 | 拆为 `testcert`（纯 stdlib）+ `testlive`（重依赖），解除叶子包测试的 import cycle 陷阱；当前 certbundle 已内联绕过，属技术债清理 |
 | T10 | `internal/mcp` 三个文件 gofmt 对齐 | `server.go`/`ops_remote.go`/`tools.go` 的 const 块与 map 字面量对齐为 HEAD 既有问题，刻意未顺手格式化（避免无关 diff）；可作独立提交 |
+| T11 | **MCP/REST 的证书操作审计记 `system`** | `CertificateService.Issue/Revoke/...` 硬编码 `auditAction(ctx, nil, ...)`，两个通道都丢失用户归属。修复需把 actor 穿透 service 层（影响 REST），超出发版范围；MCP 有 per-user token 后问题更明显，建议优先做 |
+| T12 | **M2 的 resources / prompts** | 把证书清单/临期清单作为 MCP resources 直喂模型（省去反复调工具）；预置「巡检并出报告」类 prompts。OAuth 暂不建议做（API Token 已够用） |
+| T13 | **v1.4.0 之后的发版** | MCP HTTP 传输等 M2 内容累计在 `[未发布]`（新增交付能力 + 修复），按语义化版本应发 **v1.5.0** |
 
 ### P3 — 长期（路线图）
 
@@ -120,6 +162,12 @@ go test -tags integration ./internal/tests/e2e/ -run TestMCPStdioEndToEnd   # �
 # 覆盖率（函数级；total 行是总体，按包筛 0% 函数找缺口）
 go test ./... -coverprofile=coverage -covermode=atomic
 go tool cover -func coverage          # 注意：文件名叫 coverage 而非 coverage.out
+
+# MCP HTTP 传输验证（integration tag，需二进制）
+$env:ARGUS_E2E_BIN = "D:\opencode\SuperCert\build\argus.exe"
+go test -tags integration ./internal/tests/e2e/ -run "TestMCPHTTP" -v
+# 本地手工验证：起服务端（config 里 mcp.enabled: true）→ init-admin →
+# 登录改密 → 建只读/全权两个 API Token → 用 SDK StreamableClientTransport 连 /mcp
 
 # 前端
 cd web; npx tsc -b; npx vitest run; npm run build     # build 输出到 webassets/dist（go:embed 源）
@@ -152,6 +200,9 @@ powershell -ExecutionPolicy Bypass -File $env:TEMP\opencode\argus-mcp-verify.ps1
 | **`.ac4-test/` 等联调产物** | 未 gitignore，提交前必须删；`mock-data/`、`data/` 已 gitignore |
 | **`internal/testutil` 有 import cycle 陷阱** | `live_server.go` 拖入整个 httpapi，导致叶子包（如 certbundle）测试无法复用 `GenTestCert`。**建议拆成 `testcert`（纯 stdlib）+ `testlive`（重依赖）**；当前 certbundle 测试已内联一份证书生成绕过 |
 | **PowerShell here-string 匹配文件内容常失败** | 目标 Go 文件多为 LF 行尾，而 here-string 是 CRLF——匹配前先 `-replace "\r\n","\n"` 归一化；或直接用 edit 工具（ASCII 片段） |
+| **PS 5.1 无 3 参数 `Replace` / `IndexOf` 后要手动拼** | `$t.Replace($a,$b,1)` 会报"找不到替换"；用 `IndexOf` + `Substring` 拼接实现单次替换 |
+| **`go test -race` 本机跑不了** | 需 gcc/cgo，Windows 开发机未装；并发单测可跑，竞态检测靠 CI（Linux） |
+| **SDK 客户端连不上先查响应体** | Streamable HTTP 出错时 SDK 只给状态码；用裸 HTTP 打一发看 body 才能定位（本次靠这招发现 `Bearer Bearer` 双前缀） |
 
 ### 4.4 测试环境变量
 
