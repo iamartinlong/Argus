@@ -90,12 +90,16 @@
 | 列表页体验优化（v1.2.0） | ①15 个列表/详情页新增刷新按钮（共享 `RefreshButton`）+ 手动刷新遮罩动效（`TableRefreshOverlay` + `useTableRefresh`：仅包裹主动点击的刷新、最短展示 400ms、轮询页不闪、失败也收遮罩）；②签发/新建类弹窗重开不再残留上次输入（含 DNS 密钥/密码/Token，关闭即清覆盖 Esc/遮罩/X）；③签发/导入失败改为内联 Alert（常驻详细错误）+ 简短 toast；④侧边栏品牌区展示版本号（`GET /api/v1/system/version` 取二进制版本，单一事实源） | ✅ |
 | 表单体验优化（v1.3.0） | ①必填项统一红星（`Label` `required` prop，补 53 处；部署目标必填规则收敛为 `isDeployFieldRequired` 单一来源驱动 zod 与红星 + 31 例防漂移测试）；②长 URL 改 Textarea（通知渠道 4 个 Webhook URL + 部署目标 Webhook URL，提交 trim）；③下拉选中显示 label 而非 value（base-ui `Select` `items`，5 处）；④空选项引导（`EmptySelectHint`：渠道账户/申请人/部署目标/Agent，点击跳转对应管理页）；⑤表单内 Select 统一 `w-full`；⑥IIS SNI 主机名支持台账选择（`DomainInput` 共享组件 + 单域名模式） | ✅ |
 | 域名管理/域名台账 | 域名作为**主数据**独立管理（`domains` 表，迁移 id=19，sqlite+PG 双写）；与证书**不建映射表**——关联 = `certificates.domain_id`（引用）+ `domain_name`（副本），读取时实时计算覆盖状态五态（missing/expiring/expired/covered/monitor，通配符父域覆盖子域）；签发时经 `DomainInput`（base-ui combobox：左输入框自由输入 + 右按钮弹台账多选 + chips）从台账选择，后端按 primary domain 反查落副本；台账页含统计条/覆盖筛选/富化行；域名规范化三处重复实现收敛至 `domain.NormalizeDomain`；顺带修复 import 证书默认配置下收不到到期提醒的缺陷 | ✅ |
+| MCP Server（v1.4.0） | Argus 成为 MCP（Model Context Protocol）Server：`argus mcp` 子命令以 stdio 传输启动（官方 SDK `modelcontextprotocol/go-sdk v1.8.0`），**本地模式**直连数据库（进程权限即信任，同 CLI 模型）、**远程模式** `--server/--token`（或 `ARGUS_API_TOKEN`）经 REST 代理由服务端强制 token scope；**12+1 工具**（查询 6：证书/目标/账户/Agent/任务日志；操作 6：签发/续期/吊销/导入/部署/连通性；`download_certificate` 含私钥**默认不注册**，需 `mcp.allow_key_download: true` 且每次审计，且只返回文件名与大小、私钥文本不进对话通道）；本地 `--scopes` 收敛工具集；入参 JSON Schema 校验且拒绝未知字段（SDK 泛型 `AddTool` + struct tag 自动推断 `additionalProperties:false`）；复用既有 API Token scope 与审计体系，不建平行认证；`internal/infrastructure/certbundle` 从 httpapi 抽出供下载共用；Web「系统 → MCP」静态指南页（连接命令 + 客户端 JSON 模板一键复制 + 工具清单 + Token 跳转）+ 文档站 `guide/mcp.md`；stdio e2e spawn 真实二进制；真实双 token 联调修复远程分支未接线与 REST DTO 转换两个 bug | ✅ |
 
 ## 路线图（剩余未开发）
 
 ### 近期（功能完整度）
 
-*暂无 — CLI 补全已下调为可选（见可选项）*
+| 优先级 | 项 | 说明 |
+|---|---|---|
+| P1 | M2：MCP HTTP 传输 + resources/prompts + OAuth | stdio 双模式已交付（v1.4.0）；HTTP streamable 传输、resources/prompts、OAuth 授权留 M2（约 2–3 天）。**实施前必须处理 SDK 的 DNS rebinding CVE 与授权模型**（stdio 无此问题） |
+| P1 | 生产环境升级 v1.4.0 | WS2016：替换二进制 + 重启，迁移自动；先 `argus backup` |
 
 ### 中期（规模化 / 增强）
 

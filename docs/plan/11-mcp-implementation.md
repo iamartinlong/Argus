@@ -1,8 +1,10 @@
 # 实施计划：MCP 服务（v1 / M1）
 
-> 关联需求：[10-mcp-requirements.md](10-mcp-requirements.md) · 状态：待评审 · 范围：**仅 stdio（本地+远程）+ 12+1 工具**，HTTP 传输与 resources/prompts 属 M2（本文档占位说明，不在本次实施）
+> 关联需求：[10-mcp-requirements.md](10-mcp-requirements.md) · 状态：**M1 已完成并随 v1.4.0 发布（2026-11-03）** · 范围：**仅 stdio（本地+远程）+ 12+1 工具**，HTTP 传输与 resources/prompts 属 M2（本文档占位说明，不在本次实施）
 >
 > **v1.1 修订（2026-11-03）**：M1c 增加 Web 静态指南页任务（c4b，FR-7/D9）；工时 4 → 4.5 天。
+>
+> **v1.2 收尾记录（2026-11-03）**：M1a/b/c 全部实施完成（提交 `74e28a3`/`576f8b5`/`635d6d0`），真实双 token 联调（AC4）后修复两个 bug 并补 `--scopes` 接线（`3d510b5`/`fddbbce`），Web 页增加客户端 JSON 模板一键复制（`7e3de63`）。与原计划的偏差：①SDK 用泛型 `AddTool` + struct tag 自动推断 schema（原计划手写 schema），顺带满足"禁用未知字段"；②T13 只返回文件名与大小而非私钥内容（比原计划更保守）；③远程模式不注册 T13（原计划的"按服务端开关保守注册"改为直接不注册）。剩余 M2 见 [14-handover.md](14-handover.md) 待办。
 
 ## 1. 里程碑拆分
 

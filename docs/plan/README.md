@@ -18,6 +18,7 @@
 | [11-mcp-implementation.md](11-mcp-implementation.md) | MCP 服务实施计划（M1 stdio 双模式 + 12 工具；M2 HTTP/resources/OAuth） |
 | [12-domain-management.md](12-domain-management.md) | 域名管理（域名台账）需求与方案：域名主数据 + 证照相副本 + 覆盖状态实时计算 |
 | [13-frontend-component-practices.md](13-frontend-component-practices.md) | **前端组件实践知识库**：Select/Combobox/Dialog/列表页四件套的约定、模板、坑位清单（新增组件前必读） |
+| [14-handover.md](14-handover.md) | **交接文档**：当前状态、工作日志、待办（TODO）、操作手册与踩坑记录 |
 
 ## 关键决策记录
 
@@ -35,5 +36,5 @@
 | D10 | 私钥 AES-GCM 加密存储 | 主密钥文件/环境变量保管，明文仅按需下发至业务机 |
 | D11 | site-docs 文档站（已建设） | VitePress 独立工程（`site-docs/`），Markdown 驱动：快速开始/用户手册/部署指南/运维/API/架构，`make docs` 构建，产物独立发布 |
 | D12 | SSL 签发渠道可扩展 | 统一 `CertificateProvider` 接口 + 注册表，内置 ACME/阿里云/腾讯云，新渠道只实现接口；渠道凭据加密存储，签发后流程与渠道无关 |
-| D13 | MCP 作为新 delivery 层（规划中） | 三方 AI Agent（Claude Code/Cline/Zed 等）经 Model Context Protocol 调用证书生命周期；官方 Go SDK；M1 先 stdio 本地+远程（REST 代理），M2 再上 HTTP（Bearer Token）与 resources/prompts；复用既有 API Token + scope，不建平行认证；私钥下载工具默认关闭。需求与实施计划见 [10-mcp-requirements.md](10-mcp-requirements.md) / [11-mcp-implementation.md](11-mcp-implementation.md) |
+| D13 | MCP 作为新 delivery 层（**M1 已交付于 v1.4.0**） | 三方 AI Agent（Claude Code/Cline/Zed 等）经 Model Context Protocol 调用证书生命周期；官方 Go SDK；M1 已交付 stdio 本地+远程（REST 代理）；M2 再上 HTTP（Bearer Token）与 resources/prompts；复用既有 API Token + scope，不建平行认证；私钥下载工具默认关闭。需求与实施计划见 [10-mcp-requirements.md](10-mcp-requirements.md) / [11-mcp-implementation.md](11-mcp-implementation.md) |
 | D14 | 前端组件实践以知识库形式固化（[13-frontend-component-practices.md](13-frontend-component-practices.md)） | 组件约定散落在历次修复中无法检索；集中一份"规则 + 模板 + 坑位清单"，新增/修改组件前先查。关键约定：Select 用 `items` 保证 label 单一来源、表单内 `w-full`；可输入 combobox 面板只由按钮开启（规避 aria-hidden 遮挡）；Dialog 打开/关闭双重重置；列表页刷新四件套只包主动刷新 |

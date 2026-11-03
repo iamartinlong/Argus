@@ -1,8 +1,10 @@
 # 需求文档：MCP 服务（三方 Agent 连接能力）
 
-> 版本：v1.0（规划稿） · 状态：待评审 · 关联实施计划：[11-mcp-implementation.md](11-mcp-implementation.md)
+> 版本：v1.0（规划稿） · 状态：**M1 范围已实现并随 v1.4.0 发布（2026-11-03）** · 关联实施计划：[11-mcp-implementation.md](11-mcp-implementation.md)
 >
 > **v1.1 修订（2026-11-03）**：新增 FR-7 可发现性与决策 D9——Web 侧增加一个**静态「MCP 指南」页**（系统菜单，零服务端交互），其余范围不变；实施工时 4 → 4.5 天。
+>
+> **v1.2 收尾（2026-11-03）**：FR-1~FR-7 全部落地；AC 验收记录见实施计划与 [14-handover.md](14-handover.md)。HTTP 传输 / resources / prompts / OAuth 属 M2，未在本文档范围內。
 
 ## 1. 背景与目标
 
