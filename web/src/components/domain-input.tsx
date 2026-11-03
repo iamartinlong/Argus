@@ -156,20 +156,6 @@ export function DomainInput({
               </button>
             </span>
           ))}
-        {value !== "" && (
-          <button
-            type="button"
-            aria-label="清空全部域名"
-            title="清空"
-            className="inline-flex size-5 shrink-0 items-center justify-center rounded-sm text-muted-foreground hover:text-foreground"
-            onClick={() => {
-              onChange("")
-              setInputValue("")
-            }}
-          >
-            <X className="size-3.5" />
-          </button>
-        )}
         <Combobox.Input
           className="min-w-28 flex-1 bg-transparent py-0.5 outline-none placeholder:text-muted-foreground"
           placeholder={value === "" ? placeholder : ""}
@@ -203,6 +189,21 @@ export function DomainInput({
             }
           }}
         />
+        {/* 清空按钮：统一放在输入框右侧（紧邻选择按钮），两种模式位置一致 */}
+        {value !== "" && (
+          <button
+            type="button"
+            aria-label="清空全部域名"
+            title="清空"
+            className="inline-flex size-5 shrink-0 items-center justify-center rounded-sm text-muted-foreground hover:text-foreground"
+            onClick={() => {
+              onChange("")
+              setInputValue("")
+            }}
+          >
+            <X className="size-3.5" />
+          </button>
+        )}
         <Combobox.Trigger
           type="button"
           aria-label="从域名台账选择"
