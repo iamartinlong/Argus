@@ -71,11 +71,34 @@ function CommandBlock({ command }: { command: string }) {
   )
 }
 
+/** 客户端配置模板：本地模式（JSON，一键复制） */
+const LOCAL_TEMPLATE_JSON = `{
+  "mcpServers": {
+    "argus": {
+      "command": "argus",
+      "args": ["mcp", "--config", "/etc/argus/config.yaml"]
+    }
+  }
+}`
+
+/** 客户端配置模板：远程模式（JSON，一键复制；token 为占位符，需替换） */
+const REMOTE_TEMPLATE_JSON = `{
+  "mcpServers": {
+    "argus": {
+      "command": "argus",
+      "args": [
+        "mcp",
+        "--server", "https://cert.example.com",
+        "--token", "st_xxxxxxxx"
+      ]
+    }
+  }
+}`
+
 /**
  * MCP 指南页（静态）：让用户知道 Argus 可作为 MCP Server 被 AI Agent
- * 连接，并给出连接命令与工具清单。零服务端交互——M1 的 MCP 没有
- * 服务端运行时状态可展示（stdio 为客户端拉起的短生命周期进程）。
- * 完整教程见文档站（唯一事实源）。
+ * 连接，并给出连接命令、客户端配置模板与工具清单。零服务端交互——M1 的
+ * MCP 没有服务端运行时状态可展示（stdio 为客户端拉起的短生命周期进程）。
  */
 export function McpGuidePage() {
   return (
@@ -109,6 +132,25 @@ export function McpGuidePage() {
             <p className="text-xs text-muted-foreground">
               建议用环境变量 <code className="font-mono">ARGUS_API_TOKEN</code> 传 token，避免出现在 shell 历史。
             </p>
+          </section>
+
+          <section className="space-y-3">
+            <h3 className="text-sm font-medium">客户端配置模板（JSON，一键复制）</h3>
+            <p className="text-sm text-muted-foreground">
+              粘贴到客户端配置文件即可：Cline / Claude Desktop 用 <code className="font-mono">mcpServers</code>，
+              Zed 用 <code className="font-mono">context_servers</code>（字段结构相同）。
+            </p>
+            <div className="space-y-1">
+              <p className="text-xs text-muted-foreground">本地模式（把配置路径换成实际路径，Windows 如 <code className="font-mono">C:\argus\config.yaml</code>）</p>
+              <CommandBlock command={LOCAL_TEMPLATE_JSON} />
+            </div>
+            <div className="space-y-1">
+              <p className="text-xs text-muted-foreground">
+                远程模式（把 <code className="font-mono">st_xxxxxxxx</code> 换成你的 API Token，
+                <code className="font-mono">cert.example.com</code> 换成服务端地址）
+              </p>
+              <CommandBlock command={REMOTE_TEMPLATE_JSON} />
+            </div>
           </section>
 
           <section className="space-y-2">
@@ -150,9 +192,6 @@ export function McpGuidePage() {
             <Button variant="outline" render={<Link to="/api-tokens" />}>
               <KeyRound className="mr-2 size-4" />
               去创建 API Token（远程模式需要）
-            </Button>
-            <Button variant="link" render={<a href="https://iamartinlong.github.io/Argus/guide/mcp" target="_blank" rel="noreferrer" />}>
-              查看完整文档（客户端配置 / 排障）
             </Button>
           </section>
         </CardContent>
