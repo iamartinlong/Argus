@@ -188,17 +188,17 @@ export function ContactsPage() {
           </DialogHeader>
           <form className="space-y-4" onSubmit={handleSubmit((v) => save.mutate(v))}>
             <div className="space-y-2">
-              <Label>姓名</Label>
+              <Label required>姓名</Label>
               <Input placeholder="张三" {...register("name")} />
               {errors.name && <p className="text-sm text-destructive">{errors.name.message}</p>}
             </div>
             <div className="space-y-2">
-              <Label>邮箱</Label>
+              <Label required>邮箱</Label>
               <Input type="email" placeholder="name@example.com" {...register("email")} />
               {errors.email && <p className="text-sm text-destructive">{errors.email.message}</p>}
             </div>
             <div className="space-y-2">
-              <Label>电话</Label>
+              <Label required>电话</Label>
               <Input placeholder="13800138000" {...register("phone")} />
               {errors.phone && <p className="text-sm text-destructive">{errors.phone.message}</p>}
             </div>

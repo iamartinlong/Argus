@@ -73,7 +73,7 @@ const sceneNames: Record<string, string> = {
 // 有场景的通道
 const sceneChannels = ["local", "ssh", "agent"]
 
-const targetSchema = z
+export const targetSchema = z
   .object({
     name: z.string().min(1, "请输入目标名称"),
     type: z.enum(["local", "ssh", "agent", "k8s", "webhook"]),
@@ -99,50 +99,73 @@ const targetSchema = z
     url: z.string().optional(),
   })
   .superRefine((v, ctx) => {
-    // 有场景通道缺省用通用
-    const scene = sceneChannels.includes(v.type) ? (v.scene || "generic") : undefined
+    // 有场景通道缺省用通用；k8s/webhook 无场景
+    const scene = sceneChannels.includes(v.type) ? (v.scene || "generic") : ""
     const add = (field: string, msg: string) =>
       ctx.addIssue({ code: "custom", path: [field], message: msg })
+    const missing = (field: string) =>
+      !String((v as Record<string, unknown>)[field] ?? "").trim()
 
-    switch (v.type) {
-      case "local":
-        if (scene === "tomcat" || scene === "iis") {
-          if (!v.pfx_path) add("pfx_path", "请输入 PFX 路径")
-          if (scene === "iis" && !v.iis_bindings) add("iis_bindings", "请输入 HTTPS 绑定端口")
-        } else if (!v.cert_path) {
-          add("cert_path", "请输入证书路径")
-        }
-        break
-      case "ssh":
-        if (!v.host) add("host", "请输入主机")
-        if (!v.user) add("user", "请输入用户")
-        if (!v.private_key && !v.password) add("private_key", "请配置 SSH 私钥或密码")
-        if (scene === "tomcat" || scene === "iis") {
-          if (!v.pfx_path) add("pfx_path", "请输入 PFX 路径")
-          if (scene === "iis" && !v.iis_bindings) add("iis_bindings", "请输入 HTTPS 绑定端口")
-        } else if (!v.cert_path) {
-          add("cert_path", "请输入证书路径")
-        }
-        if (v.port && !/^\d+$/.test(v.port)) add("port", "端口需为数字")
-        break
-      case "agent":
-        if (!v.agent_id) add("agent_id", "请选择 Agent")
-        if (scene === "tomcat" || scene === "iis") {
-          if (!v.pfx_path) add("pfx_path", "请输入 PFX 路径")
-          if (scene === "iis" && !v.iis_bindings) add("iis_bindings", "请输入 HTTPS 绑定端口")
-        } else if (!v.cert_path) {
-          add("cert_path", "请输入证书路径")
-        }
-        break
-      case "k8s":
-        if (!v.secret_name) add("secret_name", "请输入 Secret 名称")
-        break
-      case "webhook":
-        if (!v.url) add("url", "请输入 Webhook URL")
-        else if (!/^https:\/\//.test(v.url)) add("url", "URL 必须为 https://")
-        break
+    // 必填校验统一走 isDeployFieldRequired（与 Label 红星同一来源，避免漂移）
+    for (const f of DEPLOY_REQUIRED_FIELDS) {
+      if (!isDeployFieldRequired(v.type, scene, f)) continue
+      // private_key 与 password 二选一：填了密码就不算缺
+      if (f === "private_key" && !missing("password")) continue
+      if (missing(f)) add(f, DEPLOY_REQUIRED_MESSAGES[f])
     }
+    // 非必填类的格式校验
+    if (v.type === "ssh" && v.port && !/^\d+$/.test(v.port)) add("port", "端口需为数字")
+    if (v.type === "webhook" && v.url && !/^https:\/\//.test(v.url)) add("url", "URL 必须为 https://")
   })
+
+// DEPLOY_REQUIRED_FIELDS 参与必填判定的字段
+const DEPLOY_REQUIRED_FIELDS = [
+  "name", "host", "user", "private_key", "pfx_path", "iis_bindings",
+  "cert_path", "agent_id", "secret_name", "url",
+] as const
+
+// 必填提示文案（与历史一致）
+const DEPLOY_REQUIRED_MESSAGES: Record<string, string> = {
+  name: "请输入目标名称",
+  host: "请输入主机",
+  user: "请输入用户",
+  private_key: "请配置 SSH 私钥或密码",
+  pfx_path: "请输入 PFX 路径",
+  iis_bindings: "请输入 HTTPS 绑定端口",
+  cert_path: "请输入证书路径",
+  agent_id: "请选择 Agent",
+  secret_name: "请输入 Secret 名称",
+  url: "请输入 Webhook URL",
+}
+
+// isDeployFieldRequired 字段在「通道 type × 场景 scene」下是否必填。
+// zod superRefine 与表单 Label 的红星共用本函数——改必填规则只改这里。
+// scene 需已归一化（无场景通道传 ""）。
+// 注意：private_key 实际为"与 password 二选一"，此处按推荐项标星（schema 里仍放行密码）。
+export function isDeployFieldRequired(type: string, scene: string, field: string): boolean {
+  switch (field) {
+    case "name":
+      return true
+    case "host":
+    case "user":
+    case "private_key":
+      return type === "ssh"
+    case "pfx_path":
+      return scene === "tomcat" || scene === "iis"
+    case "iis_bindings":
+      return scene === "iis"
+    case "cert_path":
+      return sceneChannels.includes(type) && scene !== "tomcat" && scene !== "iis"
+    case "agent_id":
+      return type === "agent"
+    case "secret_name":
+      return type === "k8s"
+    case "url":
+      return type === "webhook"
+    default:
+      return false
+  }
+}
 
 type TargetForm = z.infer<typeof targetSchema>
 
@@ -311,7 +334,7 @@ function TargetFields({ type, scene, form, agents, onGoToAgents }: TargetFieldsP
           {isPFX ? (
             <>
               <div className="space-y-2">
-                <Label>PFX 路径</Label>
+                <Label required={isDeployFieldRequired(type, scene, "pfx_path")}>PFX 路径</Label>
                 <Input placeholder="C:\certs\example.pfx" {...register("pfx_path")} />
                 <FieldError form={form} name="pfx_path" />
               </div>
@@ -319,7 +342,7 @@ function TargetFields({ type, scene, form, agents, onGoToAgents }: TargetFieldsP
                 <>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label>HTTPS 绑定端口（逗号分隔，如 443）</Label>
+                      <Label required={isDeployFieldRequired(type, scene, "iis_bindings")}>HTTPS 绑定端口（逗号分隔，如 443）</Label>
                       <Input placeholder="443" {...register("iis_bindings")} />
                       <FieldError form={form} name="iis_bindings" />
                     </div>
@@ -344,7 +367,7 @@ function TargetFields({ type, scene, form, agents, onGoToAgents }: TargetFieldsP
           ) : (
             <>
               <div className="space-y-2">
-                <Label>证书路径{scene === "nginx" ? "（支持 {domain} 占位）" : ""}</Label>
+                <Label required={isDeployFieldRequired(type, scene, "cert_path")}>证书路径{scene === "nginx" ? "（支持 {domain} 占位）" : ""}</Label>
                 <Input placeholder={scene === "nginx" ? "/etc/nginx/certs/{domain}/fullchain.pem" : "/etc/ssl/certs/x.pem"} {...register("cert_path")} />
                 <FieldError form={form} name="cert_path" />
                 {scene === "nginx" && <p className="text-xs text-muted-foreground">同端口多域名：每域 1 目标，路径含 {"{domain}"} 自动按证书主域替换；SNI 由多 server_name 自动复用</p>}
@@ -381,7 +404,7 @@ function TargetFields({ type, scene, form, agents, onGoToAgents }: TargetFieldsP
         <>
           <div className="grid grid-cols-3 gap-4">
             <div className="space-y-2 col-span-2">
-              <Label>主机</Label>
+              <Label required={isDeployFieldRequired(type, scene, "host")}>主机</Label>
               <Input placeholder="10.0.0.5" {...register("host")} />
               <FieldError form={form} name="host" />
             </div>
@@ -392,12 +415,12 @@ function TargetFields({ type, scene, form, agents, onGoToAgents }: TargetFieldsP
             </div>
           </div>
           <div className="space-y-2">
-            <Label>用户</Label>
+            <Label required={isDeployFieldRequired(type, scene, "user")}>用户</Label>
             <Input placeholder="root" {...register("user")} />
             <FieldError form={form} name="user" />
           </div>
           <div className="space-y-2">
-            <Label>SSH 私钥（PEM，推荐）</Label>
+            <Label required={isDeployFieldRequired(type, scene, "private_key")}>SSH 私钥（PEM，推荐）</Label>
             <Input type="password" placeholder="-----BEGIN OPENSSH PRIVATE KEY-----" {...register("private_key")} />
             <FieldError form={form} name="private_key" />
           </div>
@@ -412,7 +435,7 @@ function TargetFields({ type, scene, form, agents, onGoToAgents }: TargetFieldsP
           {isPFX ? (
             <>
               <div className="space-y-2">
-                <Label>PFX 路径</Label>
+                <Label required={isDeployFieldRequired(type, scene, "pfx_path")}>PFX 路径</Label>
                 <Input placeholder="C:\certs\example.pfx" {...register("pfx_path")} />
                 <FieldError form={form} name="pfx_path" />
               </div>
@@ -420,7 +443,7 @@ function TargetFields({ type, scene, form, agents, onGoToAgents }: TargetFieldsP
                 <>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label>HTTPS 绑定端口（逗号分隔，如 443）</Label>
+                      <Label required={isDeployFieldRequired(type, scene, "iis_bindings")}>HTTPS 绑定端口（逗号分隔，如 443）</Label>
                       <Input placeholder="443" {...register("iis_bindings")} />
                       <FieldError form={form} name="iis_bindings" />
                     </div>
@@ -452,7 +475,7 @@ function TargetFields({ type, scene, form, agents, onGoToAgents }: TargetFieldsP
             <>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>证书路径{scene === "nginx" ? "（支持 {domain} 占位）" : ""}</Label>
+                  <Label required={isDeployFieldRequired(type, scene, "cert_path")}>证书路径{scene === "nginx" ? "（支持 {domain} 占位）" : ""}</Label>
                   <Input placeholder={scene === "nginx" ? "/etc/nginx/certs/{domain}/fullchain.pem" : "/etc/ssl/certs/x.pem"} {...register("cert_path")} />
                   <FieldError form={form} name="cert_path" />
                 </div>
@@ -480,7 +503,7 @@ function TargetFields({ type, scene, form, agents, onGoToAgents }: TargetFieldsP
       {type === "agent" && (
         <>
           <div className="space-y-2">
-            <Label>Agent</Label>
+            <Label required={isDeployFieldRequired(type, scene, "agent_id")}>Agent</Label>
             {agents && agents.length === 0 ? (
               <EmptySelectHint
                 text="尚未添加 Agent。Agent 通道由业务机出站轮询拉取任务，适合 NAT/无入站端口环境。"
@@ -511,7 +534,7 @@ function TargetFields({ type, scene, form, agents, onGoToAgents }: TargetFieldsP
           {isPFX ? (
             <>
               <div className="space-y-2">
-                <Label>PFX 路径</Label>
+                <Label required={isDeployFieldRequired(type, scene, "pfx_path")}>PFX 路径</Label>
                 <Input placeholder="C:\certs\example.pfx" {...register("pfx_path")} />
                 <FieldError form={form} name="pfx_path" />
               </div>
@@ -519,7 +542,7 @@ function TargetFields({ type, scene, form, agents, onGoToAgents }: TargetFieldsP
                 <>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label>HTTPS 端口（逗号分隔，如 443）</Label>
+                      <Label required={isDeployFieldRequired(type, scene, "iis_bindings")}>HTTPS 端口（逗号分隔，如 443）</Label>
                       <Input placeholder="443" {...register("iis_bindings")} />
                       <FieldError form={form} name="iis_bindings" />
                     </div>
@@ -551,7 +574,7 @@ function TargetFields({ type, scene, form, agents, onGoToAgents }: TargetFieldsP
             <>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>证书路径{scene === "nginx" ? "（支持 {domain} 占位）" : ""}</Label>
+                  <Label required={isDeployFieldRequired(type, scene, "cert_path")}>证书路径{scene === "nginx" ? "（支持 {domain} 占位）" : ""}</Label>
                   <Input placeholder={scene === "nginx" ? "/etc/nginx/certs/{domain}/fullchain.pem" : "/etc/ssl/certs/x.pem"} {...register("cert_path")} />
                   <FieldError form={form} name="cert_path" />
                 </div>
@@ -587,7 +610,7 @@ function TargetFields({ type, scene, form, agents, onGoToAgents }: TargetFieldsP
               <Input placeholder="default" {...register("namespace")} />
             </div>
             <div className="space-y-2">
-              <Label>Secret 名称</Label>
+              <Label required={isDeployFieldRequired(type, scene, "secret_name")}>Secret 名称</Label>
               <Input placeholder="example-tls" {...register("secret_name")} />
               <FieldError form={form} name="secret_name" />
             </div>
@@ -597,7 +620,7 @@ function TargetFields({ type, scene, form, agents, onGoToAgents }: TargetFieldsP
 
       {type === "webhook" && (
         <div className="space-y-2">
-          <Label>Webhook URL（必须 https://）</Label>
+          <Label required={isDeployFieldRequired(type, scene, "url")}>Webhook URL（必须 https://）</Label>
           {/* 长 URL 用 Textarea：单行 Input 显示不全、无法查看全文 */}
           <Textarea
             placeholder="https://example.com/hook/cert"
@@ -872,7 +895,7 @@ export function DeployTargetsPage() {
           <form className="space-y-4" onSubmit={handleSubmit((v) => create.mutate(v))}>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>目标名称</Label>
+                <Label required>目标名称</Label>
                 <Input placeholder="生产 nginx-01" {...register("name")} />
                 {errors.name && <p className="text-sm text-destructive">{errors.name.message}</p>}
               </div>
@@ -950,7 +973,7 @@ export function DeployTargetsPage() {
           <form className="space-y-4" onSubmit={editForm.handleSubmit((v) => update.mutate(v))}>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>目标名称</Label>
+                <Label required>目标名称</Label>
                 <Input placeholder="生产 nginx-01" {...editForm.register("name")} />
                 {editForm.formState.errors.name && (
                   <p className="text-sm text-destructive">{editForm.formState.errors.name.message}</p>

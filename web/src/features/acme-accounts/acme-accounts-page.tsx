@@ -342,7 +342,7 @@ export function AcmeAccountsPage() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>名称</Label>
+              <Label required>名称</Label>
               <Input placeholder="渠道名称" {...register("name")} />
               {errors.name && <p className="text-sm text-destructive">{errors.name.message}</p>}
             </div>

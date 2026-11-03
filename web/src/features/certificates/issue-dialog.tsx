@@ -236,7 +236,7 @@ export function IssueDialog({ open, onOpenChange }: Props) {
           onSubmit={handleSubmit((v) => issue.mutate(v))}
         >
           <div className="space-y-2">
-            <Label>渠道账户</Label>
+            <Label required>渠道账户</Label>
             {accounts && accounts.length === 0 ? (
               <EmptySelectHint
                 text="尚未配置渠道账户。签发证书需要先配置 ACME 或云厂商渠道。"
@@ -294,7 +294,7 @@ export function IssueDialog({ open, onOpenChange }: Props) {
           )}
           {csrMode ? (
             <div className="space-y-2">
-              <Label htmlFor="csr_pem">CSR（PEM 格式）</Label>
+              <Label htmlFor="csr_pem" required={csrMode}>CSR（PEM 格式）</Label>
               <textarea
                 id="csr_pem"
                 placeholder="-----BEGIN CERTIFICATE REQUEST-----..."
@@ -308,7 +308,7 @@ export function IssueDialog({ open, onOpenChange }: Props) {
             </div>
           ) : (
             <div className="space-y-2">
-              <Label htmlFor="domains">域名</Label>
+              <Label htmlFor="domains" required={!csrMode}>域名</Label>
               <DomainInput
                 value={watch("domains") ?? ""}
                 onChange={(v) => setValue("domains", v)}

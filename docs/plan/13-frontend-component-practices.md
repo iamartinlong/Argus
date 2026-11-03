@@ -85,6 +85,8 @@ const STATUS_OPTIONS = [
 | **失败 = 内联 Alert（详细错误，常驻）+ 简短 toast** | 只 toast 会转瞬即逝被漏看；只 Alert 在长表单里可能不在视口 |
 | **条件隐藏的字段要清空** | 如勾选 CSR 模式时清 `domains`——否则残留值被一起提交，证书记录与真实 SAN 不符 |
 | `useMutation` 返回值**每次渲染都是新对象** | effect 依赖它会把 `reset()` 变成渲染循环（测试直接挂起）。**必须解构出绑定的 `reset()`** 再进 deps |
+| **必填项一律标红星** | 用 `<Label required>`（`components/ui/label.tsx` 的 `required` prop，内部渲染 `<span className="text-destructive"> *</span>`）。不要手写星号——全仓曾仅 1 处手写、66 处必填字段漏标 |
+| **条件必填按渲染期可知的条件传** | 如 `required={!csrMode}`；跨字段矩阵（部署目标的 type × scene）抽成纯函数，**zod superRefine 与 Label 红星共用同一函数**，并配防漂移测试（见 §4） |
 
 ### 2.5 列表页四件套（v1.2.0 起强制）
 
@@ -187,6 +189,16 @@ features/<域>/<name>-page.tsx
 - [ ] `onValueChange` 的 `v ?? 默认值`
 - [ ] 选项可能为空 → `EmptySelectHint` 或至少 placeholder 可读
 
+### 5.3 新表单检查单
+
+- [ ] 每个必填字段的 Label 带 `required`（红星）；条件必填按渲染期条件传
+- [ ] 跨字段必填矩阵：`isXxxRequired()` 纯函数 + zod 与 Label 共用 + 防漂移测试
+- [ ] `DEFAULT_VALUES` 常量被 `defaultValues` 与所有 `reset()` 共用
+- [ ] 打开时 reset（含 mutation 错误）；`onOpenChange` 关闭时 reset（覆盖 Esc/遮罩/X）
+- [ ] 失败有内联 Alert（长/耗时表单）或 toast（简单表单）
+- [ ] 条件隐藏的字段在隐藏时清空
+- [ ] 长文本/URL 用 Textarea（§2.7）
+
 ---
 
 ## 6. 坑位清单（踩过的，按现象检索）
@@ -207,6 +219,8 @@ features/<域>/<name>-page.tsx
 | 刷新遮罩一闪而过看不到 | 本地 API 毫秒级返回 | 最短展示 400ms（§2.5） |
 | 刷新失败时控制台 unhandled rejection | hook 把 refetch 的 rejection 抛到 onClick | catch 吞掉、finally 收遮罩（§2.5） |
 | 测试断言"文档已更新"失败但实际已更新 | **PowerShell 控制台编码损坏中文检索字面量**，`.Contains("中文")` 恒 false | 校验文件内容用**落盘 + 哈希/SHA256 比对**或 `[System.IO.File]::ReadAllText(path, UTF8)`，**不要用内联中文 grep/Contains** |
+| 必填字段没标红星，用户不知道该填什么 | 手写 Label 忘加星号（曾 66 处漏标） | 用 `<Label required>`；跨字段矩阵抽纯函数供 zod 与 Label 共用（§2.4） |
+| zod 报错字段与 Label 红星不一致（漂移） | 两处各写一份规则 | 共用 `isXxxRequired()` + 防漂移测试（矩阵遍历 type×scene，比对 safeParse 报错字段） |
 | PS 5.1 跑脚本报解析错误 | 缺 BOM/CRLF | 写脚本后转 UTF8 **with BOM** + CRLF 再 `powershell -File` |
 | jsdom 里行为与浏览器不一致（base-ui mounted/过渡） | 过渡状态依赖动画/RAF | 涉及第三方内部状态的交互，**自行兜底**（如 Esc），别依赖其内部标志 |
 | `tsc` 报 unused import/变量 | 重构后残留 | `noUnusedLocals` 开着，提交前跑 `tsc -b` |
@@ -220,3 +234,4 @@ features/<域>/<name>-page.tsx
 |---|---|
 | v1（2026-11-03） | 首版。沉淀自 v1.2.0 列表页体验优化、域名管理（D1–D4）+ 独立审计修复、IIS SNI 域名选择器及其 3 个回归修复、空下拉引导、Select label 修复 |
 | v1.1（2026-11-03） | 新增 §2.7 长文本/URL 输入约定（Textarea + 提交 trim + font-mono），坑位清单补对应条目 |
+| v1.2（2026-11-03） | 新增必填标识约定（`<Label required>` + 跨字段矩阵共用纯函数 + 防漂移测试）；新增 §5.3 新表单检查单；坑位清单补 2 条 |

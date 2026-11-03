@@ -334,7 +334,7 @@ export function NotificationRulesPage() {
           </DialogHeader>
           <form className="space-y-4" onSubmit={handleSubmit((v) => save.mutate(v))}>
             <div className="space-y-2">
-              <Label>规则名称</Label>
+              <Label required>规则名称</Label>
               <Input placeholder="生产证书到期提醒" {...register("name")} />
               {errors.name && <p className="text-sm text-destructive">{errors.name.message}</p>}
             </div>
@@ -357,7 +357,7 @@ export function NotificationRulesPage() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>通知渠道</Label>
+              <Label required>通知渠道</Label>
               {(!channels || channels.length === 0) && (
                 <p className="text-sm text-muted-foreground">
                   暂无可用渠道，请先到「通知渠道」页面新增

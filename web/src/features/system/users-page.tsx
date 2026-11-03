@@ -261,12 +261,12 @@ export function UsersPage() {
           </DialogHeader>
           <form className="space-y-4" onSubmit={handleSubmit((v) => create.mutate(v))}>
             <div className="space-y-2">
-              <Label>用户名</Label>
+              <Label required>用户名</Label>
               <Input placeholder="ops-user" {...register("username")} />
               {errors.username && <p className="text-sm text-destructive">{errors.username.message}</p>}
             </div>
             <div className="space-y-2">
-              <Label>初始密码</Label>
+              <Label required>初始密码</Label>
               <Input type="password" placeholder="至少 12 位，含大小写与数字" {...register("password")} />
               {errors.password && <p className="text-sm text-destructive">{errors.password.message}</p>}
             </div>

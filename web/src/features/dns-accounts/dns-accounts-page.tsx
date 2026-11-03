@@ -288,7 +288,7 @@ export function DnsAccountsPage() {
               {editing && <p className="text-xs text-muted-foreground">创建后不可修改，如需更换请新建</p>}
             </div>
             <div className="space-y-2">
-              <Label>名称</Label>
+              <Label required>名称</Label>
               <Input placeholder="如：主站阿里云 DNS" {...register("name")} />
               {errors.name && <p className="text-sm text-destructive">{errors.name.message}</p>}
             </div>

@@ -337,7 +337,7 @@ export function ChannelsPage() {
           </DialogHeader>
           <form className="space-y-4" onSubmit={handleSubmit((v) => save.mutate(v))}>
             <div className="space-y-2">
-              <Label>渠道名称</Label>
+              <Label required>渠道名称</Label>
               <Input placeholder="生产告警群机器人" {...register("name")} />
               {errors.name && <p className="text-sm text-destructive">{errors.name.message}</p>}
             </div>

@@ -9,6 +9,8 @@
 
 ### 优化
 
+- **必填表单项统一标注红色星号**（用户反馈：只有部分字段有星号，用户不知道该填哪些）：`Label` 组件新增 `required` prop（根因修复——此前全仓仅 1 处手写星号、66 处必填字段漏标）；本轮补全 **53 处**（无条件必填 30 + 条件必填 23），覆盖签发/导入证书、部署目标（创建+编辑）、通知渠道/规则、DNS/渠道账户、用户、申请人、API Token、Agent、域名、登录/改密/安装向导等全部表单
+- **部署目标必填规则收敛为单一来源**：`isDeployFieldRequired(type, scene, field)` 同时驱动 zod `superRefine` 校验与 Label 红星（原为两套独立规则，已重构 schema 改用该函数，错误文案不变）；新增 31 例**防漂移测试**（遍历 type × scene 矩阵，比对红星标记与 safeParse 报错字段必须一致）
 - **长 URL 输入改用 Textarea**：通知渠道的 4 个 Webhook URL 字段（webhook/wecom/dingtalk/feishu）与部署目标的 Webhook URL 从单行 Input 改为 Textarea（随内容自动增高、可查看全文、等宽字体便于辨认参数）；提交时对 textarea 字段 trim，避免粘贴带入的换行导致请求失败
 - **修复下拉框选中后显示原始 value 而非中文标签**（域名期望状态、DNS 提供商、任务日志的类型/状态筛选共 5 处）：根因是 `SelectValue` 未做 value→label 映射。改用 base-ui `Select` 的 `items` 属性（label 单一来源，触发器自动渲染 item 标签，从机制上避免此类不同步），选项数组同时驱动下拉项与触发器
 - **表单下拉为空时的引导**：渠道账户 / 申请人 / 部署目标 / Agent 四类"必须先去别处创建"的下拉，选项为空时不再显示空下拉（或禁用项），改为「说明 + 跳转按钮」（共享组件 `EmptySelectHint`），点击自动关闭当前弹窗并跳到对应管理页

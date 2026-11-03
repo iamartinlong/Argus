@@ -2,7 +2,12 @@ import * as React from "react"
 
 import { cn } from "@/lib/utils"
 
-function Label({ className, ...props }: React.ComponentProps<"label">) {
+interface LabelProps extends React.ComponentProps<"label"> {
+  /** 必填字段：在文案后渲染红色星号（表单可发现性） */
+  required?: boolean
+}
+
+function Label({ className, required, children, ...props }: LabelProps) {
   return (
     <label
       data-slot="label"
@@ -11,7 +16,14 @@ function Label({ className, ...props }: React.ComponentProps<"label">) {
         className
       )}
       {...props}
-    />
+    >
+      {children}
+      {required && (
+        <span className="text-destructive" aria-hidden>
+          {" *"}
+        </span>
+      )}
+    </label>
   )
 }
 

@@ -82,7 +82,7 @@ export function ChangePasswordPage() {
             onSubmit={handleSubmit((values) => change.mutate(values))}
           >
             <div className="space-y-2">
-              <Label htmlFor="oldPassword">当前密码</Label>
+              <Label htmlFor="oldPassword" required>当前密码</Label>
               <Input
                 id="oldPassword"
                 type="password"
@@ -94,7 +94,7 @@ export function ChangePasswordPage() {
               )}
             </div>
             <div className="space-y-2">
-              <Label htmlFor="newPassword">新密码</Label>
+              <Label htmlFor="newPassword" required>新密码</Label>
               <Input
                 id="newPassword"
                 type="password"
@@ -107,7 +107,7 @@ export function ChangePasswordPage() {
               )}
             </div>
             <div className="space-y-2">
-              <Label htmlFor="confirm">确认新密码</Label>
+              <Label htmlFor="confirm" required>确认新密码</Label>
               <Input
                 id="confirm"
                 type="password"

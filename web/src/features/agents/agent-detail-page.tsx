@@ -150,7 +150,7 @@ export function AgentDetailPage() {
               <div><span className="text-muted-foreground">创建时间：</span>{new Date(agent.created_at).toLocaleString()}</div>
             </div>
             <div className="space-y-2">
-              <Label>重命名</Label>
+              <Label required>重命名</Label>
               <div className="flex gap-2">
                 <Input value={editName} onChange={(e) => setEditName(e.target.value)} placeholder={agent.name} />
                 <Button onClick={() => rename.mutate(editName)} disabled={!editName.trim()}>保存</Button>
@@ -197,7 +197,7 @@ export function AgentDetailPage() {
               )}
             </div>
             <div className="space-y-2">
-              <Label>目标版本</Label>
+              <Label required>目标版本</Label>
               <Select value={upgradeVersion} onValueChange={(v) => setUpgradeVersion(v ?? "")}>
                 <SelectTrigger className="w-full"><SelectValue placeholder="选择版本" /></SelectTrigger>
                 <SelectContent className="min-w-[320px]">

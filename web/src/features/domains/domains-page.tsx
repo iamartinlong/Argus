@@ -362,7 +362,7 @@ export function DomainsPage() {
           )}
           <form className="space-y-4" onSubmit={handleSubmit((v) => save.mutate(v))}>
             <div className="space-y-2">
-              <Label>域名</Label>
+              <Label required>域名</Label>
               <Input placeholder="example.com 或 *.example.com" {...register("name")} />
               <p className="text-xs text-muted-foreground">自动规范化（小写、去尾点）；支持通配符</p>
               {errors.name && <p className="text-sm text-destructive">{errors.name.message}</p>}

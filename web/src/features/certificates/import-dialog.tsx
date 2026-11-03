@@ -192,14 +192,14 @@ export function ImportDialog({ open, onOpenChange }: Props) {
           {mode === "pem" ? (
             <>
               <div className="space-y-2">
-                <Label>域名（多个用逗号分隔）</Label>
+                <Label required>域名（多个用逗号分隔）</Label>
                 <Input placeholder="example.com" {...pem.register("domains")} />
                 {pem.formState.errors.domains && (
                   <p className="text-sm text-destructive">{pem.formState.errors.domains.message}</p>
                 )}
               </div>
               <div className="space-y-2">
-                <Label>证书 PEM（可含证书链）</Label>
+                <Label required>证书 PEM（可含证书链）</Label>
                 <Textarea
                   className="font-mono text-xs h-24"
                   placeholder="-----BEGIN CERTIFICATE-----"
@@ -215,7 +215,7 @@ export function ImportDialog({ open, onOpenChange }: Props) {
                 )}
               </div>
               <div className="space-y-2">
-                <Label>私钥 PEM</Label>
+                <Label required>私钥 PEM</Label>
                 <Textarea
                   className="font-mono text-xs h-24"
                   placeholder="-----BEGIN EC PRIVATE KEY-----"
@@ -234,7 +234,7 @@ export function ImportDialog({ open, onOpenChange }: Props) {
           ) : (
             <>
               <div className="space-y-2">
-                <Label>PFX / P12 文件</Label>
+                <Label required>PFX / P12 文件</Label>
                 <Input type="file" accept=".pfx,.p12,.pem" onChange={(e) => handlePfxFile(e.target.files?.[0])} />
                 <p className="text-xs text-muted-foreground">多域名将自动从证书 SAN 解析，无需填写域名</p>
                 {pfx.formState.errors.pfx && (

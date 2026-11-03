@@ -269,7 +269,7 @@ export function ApiTokensPage() {
           ) : (
             <form className="space-y-4" onSubmit={handleSubmit((v) => create.mutate(v))}>
               <div className="space-y-2">
-                <Label>名称</Label>
+                <Label required>名称</Label>
                 <Input placeholder="CI 部署脚本" {...register("name")} />
                 {errors.name && <p className="text-sm text-destructive">{errors.name.message}</p>}
               </div>
@@ -278,7 +278,7 @@ export function ApiTokensPage() {
                 <Input type="number" placeholder="90" {...register("ttl_days")} />
               </div>
               <div className="space-y-2">
-                <Label>权限范围</Label>
+                <Label required>权限范围</Label>
                 <div className="space-y-1 rounded-md border p-3">
                   <label className="flex cursor-pointer items-center justify-between text-sm">
                     <span>全部权限（继承用户角色）</span>

@@ -356,17 +356,17 @@ export function SetupPage() {
               {step === 2 && (
                 <>
                   <div className="space-y-2">
-                    <Label htmlFor="adminUsername">管理员用户名</Label>
+                    <Label htmlFor="adminUsername" required>管理员用户名</Label>
                     <Input id="adminUsername" autoComplete="username" {...register("adminUsername")} />
                     {errors.adminUsername && <p className="text-sm text-destructive">{errors.adminUsername.message}</p>}
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="adminPassword">管理员密码</Label>
+                    <Label htmlFor="adminPassword" required>管理员密码</Label>
                     <Input id="adminPassword" type="password" autoComplete="new-password" placeholder={`至少 ${minLen} 位，含大小写字母与数字`} {...register("adminPassword")} />
                     {errors.adminPassword && <p className="text-sm text-destructive">{errors.adminPassword.message}</p>}
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="confirmPassword">确认密码</Label>
+                    <Label htmlFor="confirmPassword" required>确认密码</Label>
                     <Input id="confirmPassword" type="password" autoComplete="new-password" {...register("confirmPassword")} />
                     {errors.confirmPassword && <p className="text-sm text-destructive">{errors.confirmPassword.message}</p>}
                   </div>

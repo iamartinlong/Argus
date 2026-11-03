@@ -452,7 +452,7 @@ export function AgentsPage() {
           ) : (
             <form className="space-y-4" onSubmit={handleSubmit((v) => create.mutate(v))}>
               <div className="space-y-2">
-                <Label>名称</Label>
+                <Label required>名称</Label>
                 <Input placeholder="生产机-01" {...register("name")} />
                 {errors.name && <p className="text-sm text-destructive">{errors.name.message}</p>}
               </div>
@@ -505,11 +505,11 @@ export function AgentsPage() {
               }}
             >
               <div className="space-y-2">
-                <Label>版本号</Label>
+                <Label required>版本号</Label>
                 <Input name="version" placeholder="0.2.0" required />
               </div>
               <div className="space-y-2">
-                <Label>二进制文件（argus-agent，含目标平台）</Label>
+                <Label required>二进制文件（argus-agent，含目标平台）</Label>
                 <Input ref={fileRef} type="file" accept=".exe,application/octet-stream" required />
               </div>
               <DialogFooter>
@@ -571,7 +571,7 @@ export function AgentsPage() {
           </DialogHeader>
           {binaries && binaries.length > 0 && (
             <div className="space-y-2">
-              <Label>目标版本</Label>
+              <Label required>目标版本</Label>
               <Select
                 value={pendingUpgradeVersion}
                 onValueChange={(v) => setPendingUpgradeVersion(v ?? "")}
@@ -688,7 +688,7 @@ export function AgentsPage() {
             <DialogDescription>向选中 Agent 下发升级指令，Agent 将在下次轮询时执行</DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
-            <Label>目标版本</Label>
+            <Label required>目标版本</Label>
             <Select value={batchVersion} onValueChange={(v) => setBatchVersion(v ?? "")}>
               <SelectTrigger className="w-full">
                 <SelectValue>
@@ -800,7 +800,7 @@ export function AgentsPage() {
                 </div>
               </div>
               <div className="space-y-2">
-                <Label>名称</Label>
+                <Label required>名称</Label>
                 <Input value={editName} onChange={(e) => setEditName(e.target.value)} />
               </div>
               <DialogFooter>

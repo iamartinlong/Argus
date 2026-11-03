@@ -106,7 +106,7 @@ export function LoginPage() {
             })}
           >
             <div className="space-y-2">
-              <Label htmlFor="username">用户名</Label>
+              <Label htmlFor="username" required>用户名</Label>
               <Input
                 id="username"
                 placeholder="admin"
@@ -118,7 +118,7 @@ export function LoginPage() {
               )}
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password">密码</Label>
+              <Label htmlFor="password" required>密码</Label>
               <Input
                 id="password"
                 type="password"
