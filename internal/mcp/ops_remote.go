@@ -246,26 +246,12 @@ func (o *RemoteOps) ListCertificates(ctx context.Context, f ListFilter) ([]*doma
 	if err := o.do(http.MethodGet, "/api/v1/certificates", nil, &dtos); err != nil {
 		return nil, err
 	}
-	// REST 列表不支持服务端过滤：客户端过滤（与本地实现同规则）
-	now := time.Now()
-	out := make([]*domain.Certificate, 0, len(dtos))
+	// REST 列表不支持服务端过滤：转 domain 后走共享过滤（与本地同一实现）
+	certs := make([]*domain.Certificate, 0, len(dtos))
 	for _, d := range dtos {
-		c := d.toDomain()
-		c.UpdateStatus(now)
-		if f.Status != "" && string(c.Status) != f.Status {
-			continue
-		}
-		if f.ExpiringWithinDays > 0 {
-			if c.NotAfter.IsZero() || c.NotAfter.After(now.Add(time.Duration(f.ExpiringWithinDays)*24*time.Hour)) {
-				continue
-			}
-		}
-		if f.Keyword != "" && !certMatchesKeyword(c, f.Keyword) {
-			continue
-		}
-		out = append(out, c)
+		certs = append(certs, d.toDomain())
 	}
-	return out, nil
+	return filterCertificates(certs, f, time.Now()), nil
 }
 
 func (o *RemoteOps) GetCertificate(ctx context.Context, id, domainName string) (*domain.Certificate, error) {

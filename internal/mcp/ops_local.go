@@ -39,27 +39,7 @@ func (o *LocalOps) ListCertificates(ctx context.Context, f ListFilter) ([]*domai
 	if err != nil {
 		return nil, err
 	}
-	now := time.Now()
-	out := make([]*domain.Certificate, 0, len(certs))
-	for _, c := range certs {
-		c.UpdateStatus(now) // 与 REST 一致：列表时刷新过渡态
-		if f.Status != "" && string(c.Status) != f.Status {
-			continue
-		}
-		if f.ExpiringWithinDays > 0 {
-			if c.NotAfter.IsZero() {
-				continue
-			}
-			if c.NotAfter.After(now.Add(time.Duration(f.ExpiringWithinDays) * 24 * time.Hour)) {
-				continue
-			}
-		}
-		if f.Keyword != "" && !certMatchesKeyword(c, f.Keyword) {
-			continue
-		}
-		out = append(out, c)
-	}
-	return out, nil
+	return filterCertificates(certs, f, time.Now()), nil
 }
 
 func (o *LocalOps) GetCertificate(ctx context.Context, id, domainName string) (*domain.Certificate, error) {
