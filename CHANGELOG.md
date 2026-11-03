@@ -5,6 +5,21 @@
 
 > 1.0.x 为公开仓库建立前发布的版本，此处保留变更摘要；提交历史未随公开仓库迁移。
 
+## [未发布]
+
+### 新增
+
+- **MCP Server（AI Agent 接入）**：Argus 成为 MCP（Model Context Protocol）Server，Claude Code / Cline / Zed / Claude Desktop 等 AI Agent 可用自然语言管理证书全生命周期
+  - `argus mcp` 子命令以 stdio 传输启动（官方 Go SDK `modelcontextprotocol/go-sdk` v1.8.0），零新增部署组件
+  - **本地模式**直连数据库（进程权限即信任，同 CLI 模型）；**远程模式** `--server/--token`（或 `ARGUS_API_TOKEN`）经 REST 代理，服务端强制 token scope
+  - **12+1 个工具**：查询 6（证书/目标/账户/Agent/任务日志）、操作 6（签发/续期/吊销/导入/部署/连通性测试）、`download_certificate`（含私钥）**默认不注册**，需 `mcp.allow_key_download: true` 且每次审计
+  - 本地模式 `--scopes` 收敛工具集（如只读巡检）；工具入参 JSON Schema 校验，未知字段拒绝；吊销等破坏性操作 description 内置警示
+  - 复用既有 API Token scope 与审计体系，不建平行认证、不产生新审计 action
+  - Web「系统 → MCP」静态指南页（连接命令一键复制 + 工具清单 + Token 跳转）；文档站新增 MCP 连接指南
+  - 配置段 `mcp.enabled`（M2 HTTP 门禁，默认 false）/ `mcp.allow_key_download`（默认 false）
+  - 测试：工具注册矩阵（默认 12 / T13 条件注册 / scope 过滤）、工具调用与缺参错误、stdio e2e（spawn 真实二进制走 initialize → tools/list → tools/call）
+  - HTTP streamable HTTP 传输、resources/prompts、OAuth 属 M2，另行排期
+
 ## [1.3.0] - 2026-11-03
 
 ### 新增

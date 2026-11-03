@@ -27,6 +27,12 @@ export default defineConfig({
             { text: "签发第一张证书", link: "/guide/first-certificate" },
           ],
         },
+        {
+          text: "AI Agent 接入",
+          items: [
+            { text: "MCP 连接指南", link: "/guide/mcp" },
+          ],
+        },
       ],
       "/manual/": [
         {

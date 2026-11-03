@@ -26,6 +26,7 @@
 | 🚀 多通道部署 | SSH（Agentless）、Agent（出站穿透 NAT）、K8s Secret、Webhook、Windows IIS |
 | 📢 通知中心 | SMTP / Webhook / 企微 / 钉钉 / 飞书机器人，失败自动重试 |
 | 💻 Web + CLI | React 管理后台 + cobra CLI（本地进程内 / 远程 API Token 模式） |
+| 🤖 MCP Server | 官方 Go SDK 实现的 MCP 服务（stdio）：Claude Code / Cline / Zed 等 AI Agent 用自然语言管理证书全生命周期，复用 API Token scope，私钥下载默认关闭 |
 | 📦 单二进制 | 前端产物 go:embed 内嵌，Windows 服务 / systemd / Docker 一键部署 |
 
 ## 功能展示
@@ -51,7 +52,7 @@
 ## 架构
 
 ```
-delivery (httpapi / cli)
+delivery (httpapi / cli / mcp)
     ↓
 application (用例编排，唯一业务入口；事件总线解耦签发/续期/部署/通知)
     ↓

@@ -13,6 +13,7 @@ import {
   NetworkIcon,
   LockKeyholeIcon,
   GlobeIcon,
+  BotIcon,
 } from "lucide-react"
 
 export const nav = [
@@ -83,6 +84,11 @@ export const nav = [
         title: "API 文档",
         url: "/api-docs",
         icon: BookOpenIcon,
+      },
+      {
+        title: "MCP",
+        url: "/mcp",
+        icon: BotIcon,
       },
       {
         title: "用户管理",
