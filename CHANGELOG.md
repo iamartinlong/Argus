@@ -5,7 +5,16 @@
 
 > 1.0.x 为公开仓库建立前发布的版本，此处保留变更摘要；提交历史未随公开仓库迁移。
 
-## [未发布]
+## [1.3.0] - 2026-11-03
+
+### 新增
+
+- **域名管理（域名台账）**：域名作为主数据独立管理，与证书不建映射表——关联 = 证书上的 `domain_id` 引用 + `domain_name` 副本，覆盖状态读取时实时计算
+  - 覆盖五态：`missing`（缺证书）/ `expiring`（临近到期）/ `expired` / `covered` / `monitor`（仅关注）；通配符证书覆盖其子域
+  - 台账页：统计条（总数/缺证书/临期/仅关注）、覆盖状态筛选、富化行（当前证书 + 到期 + 剩余天数 + 标签 + 备注）
+  - 签发证书表单域名录入改为「输入或选择」组件（`DomainInput`）：左侧输入框自由输入（回车落 chip、规范化去重、Backspace 删末项），右侧按钮弹出域名台账多选面板
+  - 新增 `GET /api/v1/domains`（列表富化行，所有人可读）；`POST/PUT/DELETE` 限 admin/operator；API Token 复用 certificates 读写 scope
+  - 域名规范化统一收敛至 `domain.NormalizeDomain`（原三处重复实现）
 
 ### 优化
 
@@ -18,15 +27,6 @@
 - **IIS 部署目标的主机名（SNI）支持"输入或选择"**：部署目标表单的 3 处 IIS 主机名字段（本机 / SSH / Agent 通道）接入域名录入组件——左侧输入框自由输入，右侧按钮从域名台账选择，与签发证书体验一致
 - **域名录入组件升级为共享组件**（`components/domain-input.tsx`）并新增**单域名模式**（`single`）：不显示 chips、输入框直接展示当前值、从面板选择即替换（SNI 主机名语义）；多域名模式（签发证书）行为不变
 - 组件健壮性：Esc 行为确定化（关闭面板并恢复输入显示，不再依赖 base-ui 内部 mounted 状态，也不会误清空已填主机名）；单域名模式忽略 base-ui 的 Esc 置空（用户清空走清除按钮 / Backspace）
-
-### 新增
-
-- **域名管理（域名台账）**：域名作为主数据独立管理，与证书不建映射表——关联 = 证书上的 `domain_id` 引用 + `domain_name` 副本，覆盖状态读取时实时计算
-  - 覆盖五态：`missing`（缺证书）/ `expiring`（临近到期）/ `expired` / `covered` / `monitor`（仅关注）；通配符证书覆盖其子域
-  - 台账页：统计条（总数/缺证书/临期/仅关注）、覆盖状态筛选、富化行（当前证书 + 到期 + 剩余天数 + 标签 + 备注）
-  - 签发证书表单域名录入改为「输入或选择」组件（`DomainInput`）：左侧输入框自由输入（回车落 chip、规范化去重、Backspace 删末项），右侧按钮弹出域名台账多选面板
-  - 新增 `GET /api/v1/domains`（列表富化行，所有人可读）；`POST/PUT/DELETE` 限 admin/operator；API Token 复用 certificates 读写 scope
-  - 域名规范化统一收敛至 `domain.NormalizeDomain`（原三处重复实现）
 
 ### 修复
 
