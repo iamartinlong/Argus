@@ -56,6 +56,8 @@ type bootstrap struct {
 	deployRecs *sqlite.DeployRecordStore
 	sendLogs   *sqlite.NotificationSendLogStore
 	agents     *sqlite.AgentStore
+	taskLogs   *sqlite.TaskLogStore
+	cryptor    application.Cryptor
 	stop       chan struct{} // close() 时关闭，通知后台 goroutine 退出
 }
 
@@ -218,6 +220,7 @@ func newBootstrap(configPath string, requireJWT bool) (*bootstrap, error) {
 		contactSvc: contactSvc, domainSvc: domainSvc,
 		runner: runner, schedSvc: schedSvc, registry: registry,
 		deployRecs: deployRecordStore, sendLogs: sendLogStore, agents: agentStore,
+		taskLogs: taskLogStore, cryptor: aes,
 		stop: stop,
 	}, nil
 }

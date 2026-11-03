@@ -35,6 +35,11 @@ scheduler:
   audit_log_retention_days: 0 # 审计日志保留天数（0 禁用清理，每日任务执行）
   notify_log_retention_days: 0 # 通知发送/防重日志保留天数（0 禁用清理）
 
+# MCP（Model Context Protocol）服务：供 Claude Code / Cline / Zed 等 AI Agent 调用
+mcp:
+  enabled: false              # HTTP 传输开关（M2 生效）。argus mcp 子命令（stdio）不受此限
+  allow_key_download: false   # 注册「下载证书」工具（含私钥）；开启后每次调用均审计
+
 notification:
   # 注意：渠道参数已在界面配置（notification_channels 表），
   # 以下配置仅在首次初始化时作为种子导入，之后以界面为准。

@@ -17,6 +17,17 @@ type Config struct {
 	ACME     ACMEConfig     `yaml:"acme"`
 	Notify   NotifyConfig   `yaml:"notification"`
 	Scheduler SchedulerConfig `yaml:"scheduler"`
+	MCP       MCPConfig       `yaml:"mcp"`
+}
+
+// MCPConfig MCP（Model Context Protocol）服务配置
+type MCPConfig struct {
+	// Enabled HTTP 传输开关（M2 生效）。stdio 子命令（argus mcp）不受此限——
+	// 显式本地调用即启用，等同 CLI 信任模型。
+	Enabled bool `yaml:"enabled"`
+	// AllowKeyDownload 是否注册私钥下载工具（本地/远程均生效）。
+	// 默认 false：私钥经 AI 通道外泄面最大，开启后每次调用均审计。
+	AllowKeyDownload bool `yaml:"allow_key_download"`
 }
 
 type SchedulerConfig struct {
@@ -115,6 +126,10 @@ func Default() Config {
 			ScanMinutes:          60,
 			RenewDaysBefore:      30,
 			TaskLogRetentionDays: 90,
+		},
+		MCP: MCPConfig{
+			Enabled:          false,
+			AllowKeyDownload: false,
 		},
 	}
 }

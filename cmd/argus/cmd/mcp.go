@@ -34,9 +34,18 @@ Cline、Zed、Claude Desktop 等 AI Agent 调用 Argus 的证书管理能力。
 		}
 		defer b.close()
 
-		// TODO(M1b): 接入 ops := mcp.NewLocalOps(b) 与 mcp.Config{AllowKeyDownload: b.cfg.MCP.AllowKeyDownload}
-		// （M1a 为零工具骨架，业务能力尚未接线）
-		server := mcp.NewServer(nil, version, mcp.Config{})
+		ops := mcp.NewLocalOps(mcp.LocalDeps{
+			Certs:    b.certSvc,
+			Deploy:   b.deploySvc,
+			Accounts: b.accountSvc,
+			DnsAccts: b.dnsAccountSvc,
+			Agents:   b.agentSvc,
+			TaskLogs: b.taskLogs,
+			Cryptor:  b.cryptor,
+		})
+		server := mcp.NewServer(ops, version, mcp.Config{
+			AllowKeyDownload: b.cfg.MCP.AllowKeyDownload,
+		})
 		log.Printf("Argus %s MCP Server 启动（stdio）", version)
 		return server.Run(cmd.Context())
 	},

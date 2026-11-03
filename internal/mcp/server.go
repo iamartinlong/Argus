@@ -117,6 +117,3 @@ func (s *Server) Run(ctx context.Context) error {
 
 // registerTools 注册工具集（按 cfg.Scopes 收敛；T13 视 AllowKeyDownload）。
 // M1a 阶段为零工具（仅验证协议骨架），M1b 填充 13 个工具。
-func (s *Server) registerTools() {
-	// TODO(M1b): registerTools
-}

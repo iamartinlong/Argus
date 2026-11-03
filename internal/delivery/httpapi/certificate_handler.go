@@ -1,58 +1,16 @@
 package httpapi
 
 import (
-	"archive/zip"
-	"bytes"
-	"crypto/rand"
 	"encoding/base64"
-	"math/big"
 	"net/http"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 
 	"github.com/iamartinlong/Argus/internal/application"
+	"github.com/iamartinlong/Argus/internal/infrastructure/certbundle"
 	"github.com/iamartinlong/Argus/internal/domain"
-	"github.com/iamartinlong/Argus/internal/infrastructure/deploy"
 )
-
-// zipFile zip 包内单文件
-type zipFile struct {
-	Name string
-	Data []byte
-}
-
-func buildZip(files []zipFile) ([]byte, error) {
-	var buf bytes.Buffer
-	zw := zip.NewWriter(&buf)
-	for _, f := range files {
-		w, err := zw.Create(f.Name)
-		if err != nil {
-			return nil, err
-		}
-		if _, err := w.Write(f.Data); err != nil {
-			return nil, err
-		}
-	}
-	if err := zw.Close(); err != nil {
-		return nil, err
-	}
-	return buf.Bytes(), nil
-}
-
-// randomPassword 生成 length 位字母数字随机密码（crypto/rand）
-func randomPassword(length int) (string, error) {
-	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-	out := make([]byte, length)
-	for i := range out {
-		n, err := rand.Int(rand.Reader, big.NewInt(int64(len(charset))))
-		if err != nil {
-			return "", err
-		}
-		out[i] = charset[n.Int64()]
-	}
-	return string(out), nil
-}
 
 type certResponse struct {
 	ID              string   `json:"id"`
@@ -565,6 +523,10 @@ func (h *CertificateHandler) downloadFormat(w http.ResponseWriter, r *http.Reque
 		writeError(w, r, http.StatusNotImplemented, "该格式即将支持")
 		return
 	}
+	if !certbundle.FormatSupported(format) {
+		writeError(w, r, http.StatusBadRequest, "不支持的格式")
+		return
+	}
 	priv := ""
 	if cert.PrivateKeyEnc != "" {
 		if dec, derr := h.cryptor.DecryptString(cert.PrivateKeyEnc); derr == nil {
@@ -579,53 +541,12 @@ func (h *CertificateHandler) downloadFormat(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	var files []zipFile
-	switch format {
-	case "nginx", "other":
-		leafName := "fullchain.pem"
-		if format == "other" {
-			leafName = "cert.pem"
-		}
-		files = []zipFile{
-			{Name: leafName, Data: []byte(cert.CertificatePEM)},
-			{Name: "privkey.pem", Data: []byte(priv)},
-		}
-	case "apache":
-		leaf, _, err := deploy.SplitChain(cert.CertificatePEM)
-		if err != nil {
-			writeError(w, r, http.StatusInternalServerError, "证书解析失败")
-			return
-		}
-		files = []zipFile{
-			{Name: "cert.crt", Data: []byte(leaf)},
-			{Name: "privkey.key", Data: []byte(priv)},
-		}
-	case "iis", "tomcat":
-		password, err := randomPassword(16)
-		if err != nil {
-			writeError(w, r, http.StatusInternalServerError, "生成密码失败")
-			return
-		}
-		pfx, err := deploy.BuildPFX(cert.CertificatePEM, priv, password)
-		if err != nil {
-			writeError(w, r, http.StatusInternalServerError, "合成 PFX 失败")
-			return
-		}
-		files = []zipFile{
-			{Name: "cert.pfx", Data: pfx},
-			{Name: "password.txt", Data: []byte(password)},
-		}
-	default:
-		writeError(w, r, http.StatusBadRequest, "不支持的格式")
-		return
-	}
-
-	data, err := buildZip(files)
+	data, zipName, err := certbundle.BuildFormatZip(cert.CertificatePEM, priv, format)
 	if err != nil {
-		writeError(w, r, http.StatusInternalServerError, "打包失败")
+		writeError(w, r, http.StatusInternalServerError, err.Error())
 		return
 	}
-	filename := cert.PrimaryDomain + "-" + format + ".zip"
+	filename := cert.PrimaryDomain + "-" + zipName
 	w.Header().Set("Content-Type", "application/zip")
 	w.Header().Set("Content-Disposition", "attachment; filename=\""+filename+"\"")
 	_, _ = w.Write(data)
