@@ -132,6 +132,23 @@ func TestSplitChain(t *testing.T) {
 	if l != "" || r != "" {
 		t.Fatalf("expected empty output, got %q %q", l, r)
 	}
+	// 空白输入同样按空处理
+	l, r, err = SplitChain("   \t\n")
+	if err != nil {
+		t.Fatalf("blank: %v", err)
+	}
+	if l != "" || r != "" {
+		t.Fatalf("blank input should yield empty output, got %q %q", l, r)
+	}
+	// 非空但解析不出证书必须报错（曾静默返回空串，导致下游打包出空证书文件）
+	if _, _, err := SplitChain("not a pem at all"); err == nil {
+		t.Fatal("non-empty unparseable input must error")
+	}
+	// 只有私钥 PEM（无 CERTIFICATE 块）也应报错
+	_, keyOnly := generateTestPair(t, "split.example.com")
+	if _, _, err := SplitChain(keyOnly); err == nil {
+		t.Fatal("key-only PEM must error")
+	}
 }
 
 // generateTestPair 生成测试证书+私钥

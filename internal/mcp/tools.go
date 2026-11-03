@@ -106,7 +106,7 @@ func (s *Server) addTool(name string) {
 			if err != nil {
 				return toolError(err)
 			}
-			return toolOK(certBriefs(certs))
+			return toolOK(certBriefs(certs, time.Now().UTC()))
 		})
 
 	case "get_certificate":
@@ -124,7 +124,7 @@ func (s *Server) addTool(name string) {
 			if err != nil {
 				return toolError(err)
 			}
-			return toolOK(certBrief(cert))
+			return toolOK(certBrief(cert, time.Now().UTC()))
 		})
 
 	case "list_deploy_targets":
@@ -244,7 +244,7 @@ func (s *Server) addTool(name string) {
 			if err != nil {
 				return toolError(err)
 			}
-			return toolOK(certBrief(cert))
+			return toolOK(certBrief(cert, time.Now().UTC()))
 		})
 
 	case "renew_certificate":
@@ -262,7 +262,7 @@ func (s *Server) addTool(name string) {
 			if err != nil {
 				return toolError(err)
 			}
-			return toolOK(certBrief(cert))
+			return toolOK(certBrief(cert, time.Now().UTC()))
 		})
 
 	case "revoke_certificate":
@@ -302,7 +302,7 @@ func (s *Server) addTool(name string) {
 			if err != nil {
 				return toolError(err)
 			}
-			return toolOK(certBrief(cert))
+			return toolOK(certBrief(cert, time.Now().UTC()))
 		})
 
 	case "deploy_certificate":
@@ -366,18 +366,20 @@ func (s *Server) addTool(name string) {
 }
 
 // certBriefs / certBrief 结构化证书摘要（避免把 PEM/私钥等大字段喂给模型）
-func certBriefs(certs []*domain.Certificate) []map[string]any {
+func certBriefs(certs []*domain.Certificate, now time.Time) []map[string]any {
 	out := make([]map[string]any, 0, len(certs))
 	for _, c := range certs {
-		out = append(out, certBrief(c))
+		out = append(out, certBrief(c, now))
 	}
 	return out
 }
 
-func certBrief(c *domain.Certificate) map[string]any {
+// certBrief now 显式传入（与 domain.ComputeCoverage 同风格），避免内部读时钟
+// 导致调用方无法确定性地测试。
+func certBrief(c *domain.Certificate, now time.Time) map[string]any {
 	days := int64(0)
 	if !c.NotAfter.IsZero() {
-		days = int64(c.NotAfter.Sub(time.Now().UTC()).Hours() / 24)
+		days = int64(c.NotAfter.Sub(now).Hours() / 24)
 	}
 	return map[string]any{
 		"id":              c.ID,

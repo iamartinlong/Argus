@@ -4,6 +4,7 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
+	"strings"
 )
 
 // SplitChain 将证书 PEM（叶子 + 链）拆为叶子与其余链。
@@ -26,7 +27,12 @@ func SplitChain(certPEM string) (leaf, rest string, err error) {
 		blocks = append(blocks, block)
 	}
 	if len(blocks) == 0 {
-		return "", "", nil
+		// 空输入 → 空输出（调用方按"无私钥/无证书"处理）；
+		// 非空但解析不出任何证书 → 报错（避免调用方把空串当成合法证书打包）
+		if strings.TrimSpace(certPEM) == "" {
+			return "", "", nil
+		}
+		return "", "", fmt.Errorf("证书内容无法解析为任何 CERTIFICATE 块")
 	}
 	leaf = string(pem.EncodeToMemory(blocks[0]))
 	for _, b := range blocks[1:] {
