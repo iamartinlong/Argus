@@ -205,6 +205,47 @@ describe("DomainInput 单域名模式（IIS SNI 主机名）", () => {
     expect(changes.filter((c) => c.includes("old.example.com"))).toEqual([])
   })
 
+  // 回归：单选后失焦，输入框文字曾消失（commitInput 清空了输入框，但值未变、
+  // effect 不触发，导致只剩清除图标）
+  it("选中后失焦：输入框仍显示该域名", async () => {
+    const user = userEvent.setup()
+    const { changes } = renderControlled("", true)
+
+    await user.click(screen.getByRole("button", { name: "从域名台账选择" }))
+    await user.click(await screen.findByText("www.example.com"))
+    await waitFor(() => expect(changes.at(-1)).toBe("www.example.com"))
+
+    // 失焦（点页面空白处）
+    await user.click(document.body)
+    await waitFor(() =>
+      expect((screen.getByRole("combobox") as HTMLInputElement).value).toBe("www.example.com"),
+    )
+    // 失焦不应产生额外变更
+    expect(changes).toEqual(["www.example.com"])
+  })
+
+  it("失焦时提交已输入但未回车的域名", async () => {
+    const user = userEvent.setup()
+    const { changes } = renderControlled("", true)
+
+    await user.type(screen.getByRole("combobox"), "Blur.Example.com")
+    await user.click(document.body)
+
+    await waitFor(() => expect(changes.at(-1)).toBe("blur.example.com"))
+    expect((screen.getByRole("combobox") as HTMLInputElement).value).toBe("blur.example.com")
+  })
+
+  it("失焦时清空输入框视为清空值", async () => {
+    const user = userEvent.setup()
+    const { changes } = renderControlled("keep.example.com", true)
+
+    await user.clear(screen.getByRole("combobox"))
+    await user.click(document.body)
+
+    await waitFor(() => expect(changes.at(-1)).toBe(""))
+    expect((screen.getByRole("combobox") as HTMLInputElement).value).toBe("")
+  })
+
   it("面板内输入过滤词后选中：过滤词不顶掉已选主机名", async () => {
     const user = userEvent.setup()
     const { changes } = renderControlled("keep.example.com", true)

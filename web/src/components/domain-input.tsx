@@ -74,12 +74,17 @@ export function DomainInput({
   /** 把输入框里的文本落为域名（回车/失焦时触发） */
   const commitInput = () => {
     const parsed = parseDomainTokens(inputValue)
-    setInputValue("")
     if (single) {
-      // 单域名：取第一个 token（无输入则不动，避免把已有值清掉）
-      if (parsed.length > 0) onChange(parsed[0])
+      // 单域名：取第一个 token（无输入则视为清空）。
+      // 注意：必须同步设置输入框展示值——若提交值与现值相同，onChange 不会触发，
+      // 依赖 [value] 的 effect 也不会跑，输入框会停在空文本（曾出现的"选完域名
+      // 失焦后文字消失"）。
+      const next = parsed[0] ?? ""
+      setInputValue(next)
+      if (next !== value) onChange(next)
       return
     }
+    setInputValue("")
     if (parsed.length === 0) return
     const merged = [...tokens]
     for (const d of parsed) {
