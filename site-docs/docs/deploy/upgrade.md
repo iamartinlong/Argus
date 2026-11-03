@@ -24,6 +24,27 @@ Argus 采用**单二进制 + 自动数据库迁移**，升级 = 替换二进制 
 
 > 升级后首次打开浏览器：**已有用户 → 登录页**（不会进入向导）；如需体验向导必须在空库上全新安装。
 
+## 从 1.3.x 升级到 1.4：变化清单
+
+| 变化 | 对既有部署的影响 | 需要做什么 |
+|---|---|---|
+| 新增 MCP Server（`argus mcp`，stdio） | 纯增量：不监听端口、不随 `serve` 启动、不碰数据库 | 无需操作；需要时按 [MCP 连接指南](/guide/mcp) 在 AI 客户端里加一条配置 |
+| 新增 `mcp` 配置段 | 缺省即关（`enabled: false`、`allow_key_download: false`） | 无需操作；只有要开私钥下载才需改 `config.yaml` |
+| `argus mcp` 新增 `--scopes` | 纯增量 | 无 |
+| Web 新增「系统 → MCP」页 | 纯前端增量 | 无 |
+| 远程模式经 REST 代理（`--server/--token`） | 纯增量，服务端强制 token scope | 无 |
+
+> MCP 的 stdio 进程由 AI 客户端按需拉起，**不需要**为它开放端口或改防火墙。
+
+## 跳过版本直升 1.4（1.1 → 1.4）
+
+中间版本的变化同样无需手工干预，罗列在此备查：
+
+| 版本 | 主要变化 | 对既有部署的影响 |
+|---|---|---|
+| 1.2 | 列表页刷新按钮与刷新动效、侧边栏版本号、多个表单残留/错误提示修复 | 纯增量，无 |
+| 1.3 | **域名台账**（新页面 + `GET/POST/PUT/DELETE /api/v1/domains`，读写复用 certificates scope）、域名录入改为「输入或从台账选择」、IIS/SNI 主机名同款录入、必填红星补全、导入证书到期提醒修复 | 纯增量；数据库迁移自动执行，无需操作 |
+
 ## Windows 服务升级
 
 ```powershell
@@ -36,7 +57,7 @@ Copy-Item .\argus.exe D:\argus\argus.exe -Force
 
 # 3. 启动并验证
 Start-Service Argus
-& D:\argus\argus.exe version          # 应输出版本号 1.1.0
+& D:\argus\argus.exe version          # 应输出升级后的版本号
 Get-Service Argus                      # 应为 Running
 ```
 

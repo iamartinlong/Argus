@@ -90,9 +90,15 @@ notification:
   smtp: { ... }
   webhook: { url, secret }
   im: { wecom, dingtalk, feishu }
+mcp:
+  enabled: false            # HTTP 传输开关（预留）；argus mcp 子命令（stdio）不受此限
+  allow_key_download: false # 注册「下载证书」工具（含私钥），默认关闭
 ```
 
 ## 下一步
 
 - [签发第一张证书](/guide/first-certificate)
 - [部署指南](/deploy/)
+- [域名管理（域名台账）](/manual/domains)——按域名维度巡检证书覆盖情况
+- [MCP 连接指南](/guide/mcp)——让 AI Agent 用自然语言管理证书
+- [CLI 速查](/manual/cli)——命令行与脚本化操作

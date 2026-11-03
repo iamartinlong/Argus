@@ -29,6 +29,12 @@ features:
   - icon: 💻
     title: Web + CLI 双前端
     details: React 管理后台 + cobra CLI（本地进程内 / 远程 API Token 模式）
+  - icon: 🗂️
+    title: 域名台账
+    details: 域名作为主数据独立登记，覆盖状态实时计算——哪些域名缺证书、快到期一眼看清
+  - icon: 🤖
+    title: MCP Server
+    details: Claude Code / Cline / Zed 等 AI Agent 用自然语言管理证书全生命周期，私钥下载默认关闭
   - icon: 📦
     title: 单二进制交付
     details: 前端产物内嵌，Windows 服务 / systemd / Docker 一键部署

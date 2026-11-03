@@ -24,8 +24,13 @@ IIS 证书部署使用 PFX（PKCS#12）格式。Argus 在**服务端完成 PFX �
 | SSH 私钥/密码 | 认证凭据（AES-GCM 加密存储） |
 | PFX 路径 | 服务端合成 PFX 推送的落盘路径（导入后自动删除） |
 | HTTPS 绑定端口 | 逗号分隔（如 443,8443），netsh 更新 HTTP.sys https 绑定 |
+| 主机名（SNI） | 多站点同端口必填，如 `www.example.com`；可直接输入或点右侧按钮从[域名台账](/manual/domains)选择 |
 | IIS 站点名（可选） | 填写后同时更新站点 https 绑定（appcmd） |
 | known_hosts | 建议配置防中间人 |
+
+> **同一 IP 同一端口跑多个站点**时必须给每个目标填不同的 SNI 主机名——
+> 否则第二个站点的 https 绑定会失败（或主机名为空）。Nginx 场景同理会用
+> `server_name` 做 SNI 复用，每域建一个目标即可。
 
 ### Agent 通道（NAT 环境）
 

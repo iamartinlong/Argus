@@ -26,6 +26,7 @@
 |---|---|
 | 认证 | `/auth/login` `/auth/refresh` `/auth/logout` |
 | 证书 | `/certificates`（CRUD + renew/revoke/deploy/import/download/orders/deploy-records，支持 `dns_provider_account_id`） |
+| 域名台账 | `/domains`（CRUD；列表含实时覆盖状态与当前证书摘要，读写同 `certificates` scope） |
 | 渠道账户 | `/acme-accounts`（CRUD + test + providers）、`/dns-accounts`（CRUD + providers，ACME DNS-01 复用） |
 | 部署 | `/deploy-targets`（CRUD + test）、`/task-logs/scan` |
 | 通知 | `/notification-rules`、`notification-channels`、`notification-templates`、`notification-send-logs`（含导出）、`channels` 列表 |
