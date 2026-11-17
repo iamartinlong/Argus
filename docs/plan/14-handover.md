@@ -171,7 +171,8 @@ if ($friendlyName) {
 | T10 | `internal/mcp` 三个文件 gofmt 对齐 | `server.go`/`ops_remote.go`/`tools.go` 的 const 块与 map 字面量对齐为 HEAD 既有问题，刻意未顺手格式化（避免无关 diff）；可作独立提交 |
 | T11 | **MCP/REST 的证书操作审计记 `system`** | `CertificateService.Issue/Revoke/...` 硬编码 `auditAction(ctx, nil, ...)`，两个通道都丢失用户归属。修复需把 actor 穿透 service 层（影响 REST），超出发版范围；MCP 有 per-user token 后问题更明显，建议优先做 |
 | T12 | **M2 的 resources / prompts** | 把证书清单/临期清单作为 MCP resources 直喂模型（省去反复调工具）；预置「巡检并出报告」类 prompts。OAuth 暂不建议做（API Token 已够用） |
-| T13 | **v1.4.0 之后的发版** | MCP HTTP 传输等 M2 内容累计在 `[未发布]`（新增交付能力 + 修复），按语义化版本应发 **v1.5.0** |
+| T13 | **下次发版** | [未发布] 含 IIS 名称列修复，按语义化版本应发 **v1.5.2**（修复类） |
+| T14 | **下载的 PFX 内嵌 friendlyName（待办，用户已提出）** | 场景：用户在旧版 Windows **手动下载 PFX 导入**（不走部署脚本），IIS「名称」列仍为空。部署脚本已自动设名（`a5579d9`），但下载路径没有。go-pkcs12 的 `Encoder.Encode` 不暴露 friendlyName（v0.7.4 也没有，仅 `TrustStoreEntry` 有），只能改 DER 注入属性 + 重算 MAC（可复用 `pkcs12fix` 的 ASN.1 镜像与 `computeMac`），约 150–200 行、**风险中高**（写坏会重现「密码不正确」）。备选低风险方案：`iis`/`tomcat` 格式的 zip 里附 `import.ps1`（导入 + 设名，约 30 行）。当前文档已给手动补救的单行 PowerShell。**结论：先不做，等有明确需求再选方案** |
 
 ### P3 — 长期（路线图）
 

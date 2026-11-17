@@ -58,8 +58,15 @@ if ($friendlyName) {
 ```
 
 - 设置失败只会告警，**不影响证书导入与绑定**（名称仅用于展示）
-- **手工下载的 PFX** 导入时不会带名称：在 IIS「导入证书」向导里手动填写
-  「友好名称」即可（用 `argus` 部署的则会自动带上）
+- **手工下载的 PFX** 导入后名称列为空（IIS「导入证书」对话框没有填写友好名称的字段）。导入完成后以管理员 PowerShell 补一次：
+
+  ```powershell
+  Get-ChildItem Cert:\LocalMachine\My |
+    Where-Object { $_.Subject -like '*www.example.com*' } |
+    ForEach-Object { $_.FriendlyName = 'www.example.com' }
+  ```
+
+  用 `argus` 部署的证书会由脚本自动带上名称，无需此步。
 
 ## PFX 加密算法与 Windows 版本兼容
 
