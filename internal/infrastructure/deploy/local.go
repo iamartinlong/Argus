@@ -33,10 +33,10 @@ type localConfig struct {
 	CertPath    string `json:"cert_path"`
 	KeyPath     string `json:"key_path"`
 	PostCommand string `json:"post_command"`
-	PfxPath     string `json:"pfx_path"`  // Tomcat/IIS PFX 落盘路径
-	Bindings    []int  `json:"bindings"`  // IIS https 端口
-	SiteName    string `json:"site_name"` // IIS 站点名（可选）
-	Hostname    string `json:"hostname"`  // IIS 主机名（SNI，多站点必填，否则通配）
+	PfxPath     string `json:"pfx_path"`     // Tomcat/IIS PFX 落盘路径
+	Bindings    []int  `json:"bindings"`     // IIS https 端口
+	SiteName    string `json:"site_name"`    // IIS 站点名（可选）
+	Hostname    string `json:"hostname"`     // IIS 主机名（SNI，多站点必填，否则通配）
 	ServerNames string `json:"server_names"` // Nginx SNI，多域逗号/空格分隔（同端口多 server_name）
 }
 
@@ -149,7 +149,7 @@ func deployLocalIIS(ctx context.Context, cfg *localConfig, payload Payload) (*Re
 	if hostname == "" {
 		hostname = payload.PrimaryDomain
 	}
-	script := RenderIISScriptV2WithHostname(cfg.PfxPath, pfxPassword, cfg.Bindings, cfg.SiteName, hostname)
+	script := RenderIISScriptV2WithHostname(cfg.PfxPath, pfxPassword, cfg.Bindings, cfg.SiteName, hostname, payload.PrimaryDomain)
 	out, err := runCommand(ctx, script)
 	if err != nil {
 		return nil, fmt.Errorf("IIS 绑定更新失败: %w (%s)", err, out)

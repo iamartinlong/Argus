@@ -35,7 +35,7 @@ func deployIISOverSSHWithHostname(client *ssh.Client, hostLabel, pfxPath string,
 	}
 	// PFX 含私钥：脚本失败（未走到内置删除）时也必须清理远端残留
 	defer func() { _ = sshRemoveRemote(client, pfxPath) }()
-	script := RenderIISScriptV2WithHostname(pfxPath, pfxPassword, bindings, siteName, hostname)
+	script := RenderIISScriptV2WithHostname(pfxPath, pfxPassword, bindings, siteName, hostname, payload.PrimaryDomain)
 	out, err := sshRunRemote(client, script, true)
 	if err != nil {
 		return "", fmt.Errorf("IIS 绑定更新失败: %w (%s)", err, out)
@@ -49,12 +49,19 @@ func deployIISOverSSHWithHostname(client *ssh.Client, hostLabel, pfxPath string,
 
 // IISHookScriptV2 内置 IIS 部署脚本（占位符：{pfx_path} {pfx_password} {iis_bindings} {site_binding_section} {hostname}）
 // 流程：导入 PFX 到 LocalMachine\My → netsh 更新 HTTP.sys https 绑定（SNI 时用 hostnameport，单站点无主机名时回退 ipport）
-//      → 可选 IIS 站点绑定更新（WebAdministration，site_name 非空时启用，含 HostHeader+SNI）→ 删除远端 PFX
+//
+//	→ 可选 IIS 站点绑定更新（WebAdministration，site_name 非空时启用，含 HostHeader+SNI）→ 删除远端 PFX
 const IISHookScriptV2 = `$ErrorActionPreference = 'Stop'
 $pfxPath = '{pfx_path}'
 $pfxPass = '{pfx_password}'
 $cert = Import-PfxCertificate -FilePath $pfxPath -CertStoreLocation Cert:\LocalMachine\My -Password (ConvertTo-SecureString $pfxPass -AsPlainText -Force) -Exportable
 $thumb = $cert.Thumbprint
+# 设置友好名称：IIS「服务器证书」的「名称」列读的是 FriendlyName，不设置则为空
+$friendlyName = '{friendly_name}'
+if ($friendlyName) {
+    try { (Get-Item "Cert:\LocalMachine\My\$thumb").FriendlyName = $friendlyName }
+    catch { Write-Warning "设置证书友好名称失败（不影响部署）: $_" }
+}
 $appId = '{00000000-0000-0000-0000-000000000000}'
 $hostname = '{hostname}'
 foreach ($port in @({iis_bindings})) {
@@ -101,16 +108,16 @@ foreach ($port in @({iis_bindings})) {
     }
 }`
 
-// escapePSSingleQuote 转义 PowerShell 单引号字符串（单引号内 '' 表示一个单引号）
+// escapePSSingleQuote 转义 PowerShell 单引号字符串（单引号内 ” 表示一个单引号）
 func escapePSSingleQuote(s string) string { return strings.ReplaceAll(s, "'", "''") }
 
 // RenderIISScriptV2 渲染内置 IIS 部署脚本（v2）
 func RenderIISScriptV2(pfxPath, pfxPassword string, bindings []int, siteName string) string {
-	return RenderIISScriptV2WithHostname(pfxPath, pfxPassword, bindings, siteName, "")
+	return RenderIISScriptV2WithHostname(pfxPath, pfxPassword, bindings, siteName, "", "")
 }
 
 // RenderIISScriptV2WithHostname 支持显式 hostname（多站点 SNI），空则回退 PrimaryDomain/通配
-func RenderIISScriptV2WithHostname(pfxPath, pfxPassword string, bindings []int, siteName, hostname string) string {
+func RenderIISScriptV2WithHostname(pfxPath, pfxPassword string, bindings []int, siteName, hostname, friendlyName string) string {
 	ports := make([]string, 0, len(bindings))
 	for _, p := range bindings {
 		ports = append(ports, fmt.Sprintf("%d", p))
@@ -126,6 +133,7 @@ func RenderIISScriptV2WithHostname(pfxPath, pfxPassword string, bindings []int, 
 		"{pfx_password}", escapePSSingleQuote(pfxPassword),
 		"{iis_bindings}", strings.Join(ports, ", "),
 		"{hostname}", escapePSSingleQuote(hostname),
+		"{friendly_name}", escapePSSingleQuote(friendlyName),
 		"{site_binding_section}", siteSection,
 	)
 	return r.Replace(IISHookScriptV2)
@@ -165,6 +173,12 @@ $pfxPath = '{pfx_path}'
 $pfxPass = '{pfx_password}'
 $cert = Import-PfxCertificate -FilePath $pfxPath -CertStoreLocation Cert:\LocalMachine\My -Password (ConvertTo-SecureString $pfxPass -AsPlainText -Force) -Exportable
 $thumb = $cert.Thumbprint
+# 设置友好名称：IIS「服务器证书」的「名称」列读的是 FriendlyName，不设置则为空
+$friendlyName = '{friendly_name}'
+if ($friendlyName) {
+    try { (Get-Item "Cert:\LocalMachine\My\$thumb").FriendlyName = $friendlyName }
+    catch { Write-Warning "设置证书友好名称失败（不影响部署）: $_" }
+}
 $appId = '{00000000-0000-0000-0000-000000000000}'
 $hostname = '{hostname}'
 foreach ($port in @({iis_bindings})) {
@@ -187,7 +201,7 @@ Write-Output "IIS https bindings updated with cert $thumb"`
 
 // RenderIISAgentScriptV2 渲染 agent 场景内置 IIS 部署脚本（appcmd 站点绑定）
 // siteName 为空时仅做证书导入与 netsh 端口绑定；hostname 用于站点绑定 HostHeader。
-func RenderIISAgentScriptV2(pfxPath, pfxPassword string, bindings []int, siteName, hostname string) string {
+func RenderIISAgentScriptV2(pfxPath, pfxPassword string, bindings []int, siteName, hostname, friendlyName string) string {
 	ports := make([]string, 0, len(bindings))
 	for _, p := range bindings {
 		ports = append(ports, fmt.Sprintf("%d", p))
@@ -204,10 +218,10 @@ func RenderIISAgentScriptV2(pfxPath, pfxPassword string, bindings []int, siteNam
 		"{iis_bindings}", strings.Join(ports, ", "),
 		"{site_binding_section}", siteSection,
 		"{hostname}", escapePSSingleQuote(hostname),
+		"{friendly_name}", escapePSSingleQuote(friendlyName),
 	)
 	return r.Replace(IISHookScriptAgentV2)
 }
-
 
 func parseCertChain(certPEM string) ([]*x509.Certificate, error) {
 	var certs []*x509.Certificate

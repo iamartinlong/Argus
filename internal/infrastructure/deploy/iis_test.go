@@ -64,7 +64,7 @@ func TestRenderIISScriptV2(t *testing.T) {
 		t.Fatal("unreplaced placeholder")
 	}
 	// SNI 场景：显式 hostname 时应含 HostHeader+SNI 与 hostnameport
-	scriptSNI := RenderIISScriptV2WithHostname(`C:\certs\x.pfx`, "pw123", []int{443}, "SiteA", "a.example.com")
+	scriptSNI := RenderIISScriptV2WithHostname(`C:\certs\x.pfx`, "pw123", []int{443}, "SiteA", "a.example.com", "a.example.com")
 	if !strings.Contains(scriptSNI, "a.example.com") || !strings.Contains(scriptSNI, "SslFlags 1") || !strings.Contains(scriptSNI, "hostnameport") {
 		t.Fatalf("SNI script missing hostname/SNI\n%s", scriptSNI)
 	}
@@ -89,7 +89,7 @@ func TestIISScriptV2SiteSectionRendered(t *testing.T) {
 }
 
 func TestRenderIISAgentScriptV2(t *testing.T) {
-	script := RenderIISAgentScriptV2(`C:\certs\x.pfx`, "pw123", []int{443}, "Default Web Site", "todo.example.com")
+	script := RenderIISAgentScriptV2(`C:\certs\x.pfx`, "pw123", []int{443}, "Default Web Site", "todo.example.com", "todo.example.com")
 	checks := []string{
 		"Import-PfxCertificate",
 		"netsh http add sslcert",
@@ -128,14 +128,14 @@ func TestRenderIISAgentScriptV2(t *testing.T) {
 		t.Fatal("unreplaced placeholder")
 	}
 	// 多站点 SNI 回归：不同 hostname 的脚本应互不覆盖 ipport
-	script2 := RenderIISAgentScriptV2(`C:\certs\x.pfx`, "pw123", []int{443}, "SiteB", "b.example.com")
+	script2 := RenderIISAgentScriptV2(`C:\certs\x.pfx`, "pw123", []int{443}, "SiteB", "b.example.com", "b.example.com")
 	if !strings.Contains(script2, "b.example.com") || strings.Contains(script2, "todo.example.com") {
 		t.Fatalf("second site hostname not isolated\n%s", script2)
 	}
 }
 
 func TestRenderIISAgentScriptV2WithoutSite(t *testing.T) {
-	script := RenderIISAgentScriptV2("C:/x.pfx", "pw", []int{443}, "", "todo.example.com")
+	script := RenderIISAgentScriptV2("C:/x.pfx", "pw", []int{443}, "", "todo.example.com", "todo.example.com")
 	if strings.Contains(script, "appcmd") {
 		t.Fatal("appcmd site binding should be omitted without site_name")
 	}
@@ -153,5 +153,54 @@ func TestIISAgentSiteSectionRendered(t *testing.T) {
 	}
 	if !strings.Contains(section, "443, 8443") || !strings.Contains(section, "todo.example.com") {
 		t.Fatalf("binding info missing: %s", section)
+	}
+}
+
+// 部署后 IIS「服务器证书」的「名称」列读的是 FriendlyName。
+// 脚本必须在导入后设置它，否则该列为空（用户反馈的问题）。
+func TestRenderIISScriptSetsFriendlyName(t *testing.T) {
+	script := RenderIISScriptV2WithHostname(`C:\certs\x.pfx`, "pw123", []int{443}, "SiteA", "a.example.com", "a.example.com")
+	if !strings.Contains(script, "$friendlyName = 'a.example.com'") {
+		t.Fatalf("缺少 friendlyName 赋值:\n%s", script)
+	}
+	if !strings.Contains(script, ".FriendlyName = $friendlyName") {
+		t.Fatalf("缺少 FriendlyName 赋值语句:\n%s", script)
+	}
+	if strings.Contains(script, "{friendly_name}") {
+		t.Fatal("占位符未替换")
+	}
+}
+
+// agent 通道同样要设置
+func TestRenderIISAgentScriptSetsFriendlyName(t *testing.T) {
+	script := RenderIISAgentScriptV2(`C:\certs\x.pfx`, "pw123", []int{443}, "SiteB", "b.example.com", "b.example.com")
+	if !strings.Contains(script, ".FriendlyName = $friendlyName") {
+		t.Fatalf("agent 脚本缺少 FriendlyName 设置:\n%s", script)
+	}
+	if !strings.Contains(script, "$friendlyName = 'b.example.com'") {
+		t.Fatalf("agent 脚本 friendlyName 值不符:\n%s", script)
+	}
+}
+
+// friendlyName 为空时不应写空名（避免把已有名称清掉）
+func TestRenderIISScriptEmptyFriendlyNameSkipped(t *testing.T) {
+	script := RenderIISScriptV2("C:/x.pfx", "pw", []int{443}, "")
+	if !strings.Contains(script, "$friendlyName = ''") {
+		t.Fatalf("空 friendlyName 应渲染为空串字面量:\n%s", script)
+	}
+	// 由 PowerShell 的 if ($friendlyName) 守卫，空值不执行赋值
+	if !strings.Contains(script, "if ($friendlyName) {") {
+		t.Fatalf("缺少空值守卫:\n%s", script)
+	}
+}
+
+// friendlyName 中的单引号必须转义，避免注入/语法错误
+func TestRenderIISScriptFriendlyNameQuoteEscaped(t *testing.T) {
+	script := RenderIISScriptV2WithHostname(`C:\certs\x.pfx`, "pw", []int{443}, "", "", "it's.example.com")
+	if strings.Contains(script, "$friendlyName = 'it's.example.com'") {
+		t.Fatal("单引号未转义")
+	}
+	if !strings.Contains(script, "$friendlyName = 'it''s.example.com'") {
+		t.Fatalf("单引号应转义为两个单引号:\n%s", script)
 	}
 }

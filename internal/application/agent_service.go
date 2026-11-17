@@ -367,7 +367,7 @@ func (s *AgentService) Authenticate(ctx context.Context, rawToken, version, osNa
 }
 
 // ReconcileStaleAgentTasks 清理超时未回执的 running 任务与从未领取的 pending 任务，并联动将对应部署记录置为失败
-//（agent 超时/离线/误绑时部署记录不再卡在「进行中」）。由 agent 轮询（ClaimTask）与调度器调用。
+// （agent 超时/离线/误绑时部署记录不再卡在「进行中」）。由 agent 轮询（ClaimTask）与调度器调用。
 func (s *AgentService) ReconcileStaleAgentTasks(ctx context.Context, olderThan time.Duration) error {
 	stale, err := s.tasks.MarkStaleTasks(ctx, olderThan)
 	if err != nil {
@@ -472,7 +472,7 @@ func (s *AgentService) ClaimTask(ctx context.Context, agentID string) (*domain.A
 				hostname = cert.PrimaryDomain
 			}
 			if len(bindings) > 0 {
-				payload.Hook = deploy.RenderIISAgentScriptV2(pfxPath, pfxPassword, bindings, siteName, hostname)
+				payload.Hook = deploy.RenderIISAgentScriptV2(pfxPath, pfxPassword, bindings, siteName, hostname, cert.PrimaryDomain)
 				payload.IsWindows = true
 			}
 		}

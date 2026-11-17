@@ -7,7 +7,7 @@
 
 | 项 | 状态 |
 |---|---|
-| 当前版本 | **v1.4.0**（已发布，2026-11-03） |
+| 当前版本 | **v1.5.1**（已发布，2026-11-17） |
 | 最近发布内容 | MCP Server（AI Agent 接入）：stdio 本地/远程双模式、12+1 工具 |
 | 仓库同步 | GitHub `iamartinlong/Argus`（主）+ 内网 gitea（`origin`，main + tag 同步） |
 | CI | 4 job（Go vet+test / Web typecheck+build / Cross-build / Docs Pages）+ Release（tag 触发，6 平台 zip + SHA256SUMS） |
@@ -118,6 +118,36 @@ CHANGELOG `[未发布]` 转正 → `root.go` version 1.3.0→1.4.0 → commit �
 
 新增 16 个单测 + 1 个 e2e（`TestMCPHTTPKeyDownloadAudit`：开关开→T13 注册、只读 token 看不到 T13、失败调用不产审计）；mcp 覆盖率 60.7% → **65.1%**，总用例 **353 PASS**。
 
+### 2.11 旧版 Windows 兼容性两连修（`8654727` / 发布 v1.5.1）
+
+**问题 A：IIS 导入 PFX 报「指定的网络密码不正确」（Server 2008 R2 / 2016 等）**
+
+真因不是密码，而是 PFX 加密算法：合成用 `pkcs12.Modern`（PBES2 +
+PBKDF2-HMAC-SHA256 + AES-256-CBC），go-pkcs12 官方注释明确该格式
+**仅 Windows Server 2019+ 可读**；旧版 CryptoAPI 解密失败却误报密码错误。
+
+- 新增 `deploy.pfx_profile`：`legacy`（默认，3DES+SHA1，全 Windows 可读）/
+  `modern`（仅 2019+）
+- 覆盖全部 PFX 生成路径（IIS/SSH/本机部署、Agent 合成、下载中心）
+- **已由用户在 2008 R2 SP1 实测确认修复**
+
+**问题 B：IIS「服务器证书」列表的「名称」列为空**
+
+该列读证书的 **FriendlyName**，而 `Import-PfxCertificate` 不会设置它。
+已在 SSH/本机与 Agent 两套 IIS 脚本中，导入后追加：
+
+```powershell
+$friendlyName = '<primary domain>'
+if ($friendlyName) {
+    try { (Get-Item "Cert:\LocalMachine\My\$thumb").FriendlyName = $friendlyName }
+    catch { Write-Warning "设置证书友好名称失败（不影响部署）: $_" }
+}
+```
+
+- 取值为证书主域名；空值不设置（不覆盖既有名称）；单引号已转义
+- 失败仅告警不中断部署（名称是展示属性，不影响导入与绑定）
+- 下载的 PFX 无法内嵌名称（go-pkcs12 不暴露 friendlyName），手工导入时
+  可在 IIS 导入向导里填写
 ## 3. 待办（TODO）
 
 ### P1 — 近期
@@ -203,6 +233,8 @@ powershell -ExecutionPolicy Bypass -File $env:TEMP\opencode\argus-mcp-verify.ps1
 | **PS 5.1 无 3 参数 `Replace` / `IndexOf` 后要手动拼** | `$t.Replace($a,$b,1)` 会报"找不到替换"；用 `IndexOf` + `Substring` 拼接实现单次替换 |
 | **`go test -race` 本机跑不了** | 需 gcc/cgo，Windows 开发机未装；并发单测可跑，竞态检测靠 CI（Linux） |
 | **SDK 客户端连不上先查响应体** | Streamable HTTP 出错时 SDK 只给状态码；用裸 HTTP 打一发看 body 才能定位（本次靠这招发现 `Bearer Bearer` 双前缀） |
+| **PFX「密码不正确」多半不是密码** | AES-256/PBES2 的 PFX 在 Server 2016 及更早解不开，CryptoAPI 报「指定的网络密码不正确」。见 §2.11 与 `deploy.pfx_profile` |
+| **IIS 证书「名称」列是 FriendlyName** | `Import-PfxCertificate` 不设置它 → 列为空。部署脚本已在导入后赋值（主域名）；下载的 PFX 需手工填 |
 
 ### 4.4 测试环境变量
 

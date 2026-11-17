@@ -42,6 +42,25 @@ Agent 目标配置应用场景「Windows IIS」：PFX 路径 + HTTPS 端口 + �
 本机目标配置应用场景「Windows IIS」：服务端本机合成 PFX 并执行导入/绑定脚本。
 需服务端为 Windows（其他系统 Test 会拒绝）。
 
+## IIS「服务器证书」的「名称」列
+
+该列读的是证书的 **FriendlyName**。PFX 本身不携带名称，`Import-PfxCertificate`
+也不会设置它——所以不额外处理时这一列是空的。
+
+Argus 的部署脚本在导入后会自动把**证书主域名**写为友好名称：
+
+```powershell
+$friendlyName = 'www.example.com'
+if ($friendlyName) {
+  try { (Get-Item "Cert:\LocalMachine\My\$thumb").FriendlyName = $friendlyName }
+  catch { Write-Warning "设置证书友好名称失败（不影响部署）: $_" }
+}
+```
+
+- 设置失败只会告警，**不影响证书导入与绑定**（名称仅用于展示）
+- **手工下载的 PFX** 导入时不会带名称：在 IIS「导入证书」向导里手动填写
+  「友好名称」即可（用 `argus` 部署的则会自动带上）
+
 ## PFX 加密算法与 Windows 版本兼容
 
 Argus 在服务端合成 PFX。合成算法由 `config.yaml` 的 `deploy.pfx_profile` 决定：
