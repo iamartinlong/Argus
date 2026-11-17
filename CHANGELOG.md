@@ -5,6 +5,16 @@
 
 > 1.0.x 为公开仓库建立前发布的版本，此处保留变更摘要；提交历史未随公开仓库迁移。
 
+## [未发布]
+
+### 修复
+
+- **PFX 导入报「指定的网络密码不正确」（Windows Server 2016 及更早）**：合成 PKCS#12 时用的是 `pkcs12.Modern`（PBES2 + PBKDF2-HMAC-SHA256 + AES-256-CBC），而该格式**只有 Windows Server 2019+ 能读**——2016 / 2012 R2 / 2012 / 2008 R2 的 CryptoAPI 解密失败，报的却是误导性的「密码不正确」
+  - 新增 `deploy.pfx_profile` 配置：`legacy`（默认，3DES + SHA-1，等价 OpenSSL `-descert`，全部 Windows 可导入）/ `modern`（仅 2019+）
+  - 默认改为 `legacy`：16 位随机密码有 ~95 bit 熵，KDF 迭代次数的强度差异在实际威胁模型下可忽略，而兼容性差异是"能不能用"
+  - 覆盖全部 PFX 生成路径：IIS / SSH / 本机部署、Agent 任务合成、`certbundle` 下载（iis/tomcat 格式）
+  - 测试：断言 legacy 产物含 3DES OID 且不含 PBES2/AES，modern 反之；两种 profile 均可被标准解析器解回；非法 profile 值不改策略；无参 `BuildPFX` 跟随全局策略
+  - 文档：IIS 部署页新增「PFX 加密算法与 Windows 版本兼容」对照表与故障说明
 ## [1.5.0] - 2026-11-10
 
 ### 新增

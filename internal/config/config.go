@@ -10,14 +10,24 @@ import (
 )
 
 type Config struct {
-	Server   ServerConfig   `yaml:"server"`
-	Storage  StorageConfig  `yaml:"storage"`
-	Security SecurityConfig `yaml:"security"`
-	Auth     AuthConfig     `yaml:"auth"`
-	ACME     ACMEConfig     `yaml:"acme"`
-	Notify   NotifyConfig   `yaml:"notification"`
+	Server    ServerConfig    `yaml:"server"`
+	Storage   StorageConfig   `yaml:"storage"`
+	Security  SecurityConfig  `yaml:"security"`
+	Auth      AuthConfig      `yaml:"auth"`
+	ACME      ACMEConfig      `yaml:"acme"`
+	Notify    NotifyConfig    `yaml:"notification"`
 	Scheduler SchedulerConfig `yaml:"scheduler"`
 	MCP       MCPConfig       `yaml:"mcp"`
+	Deploy    DeployConfig    `yaml:"deploy"`
+}
+
+// DeployConfig 部署相关配置
+type DeployConfig struct {
+	// PFXProfile 合成 PKCS#12（.pfx）时的加密算法：
+	//   legacy（默认，3DES+SHA1，Windows Server 2016 及更早 / 2008 R2 均可导入）
+	//   modern（AES-256+PBKDF2-SHA256，仅 Windows Server 2019+ 可导入）
+	// 旧版 Windows 解不开 modern 时会报误导性的「指定的网络密码不正确」。
+	PFXProfile string `yaml:"pfx_profile"`
 }
 
 // MCPConfig MCP（Model Context Protocol）服务配置
@@ -31,12 +41,12 @@ type MCPConfig struct {
 }
 
 type SchedulerConfig struct {
-	Enabled                 bool `yaml:"enabled"` // 默认 true（零值时构造时补齐）
-	ScanMinutes             int  `yaml:"scan_minutes"` // 扫描间隔（默认 60）
-	RenewDaysBefore         int  `yaml:"renew_days_before"` // 到期前 N 天自动续期（默认 30）
-	TaskLogRetentionDays    int  `yaml:"task_log_retention_days"` // 任务日志保留天数（默认 90，0 禁用清理）
-	AuditLogRetentionDays   int  `yaml:"audit_log_retention_days"` // 审计日志保留天数（默认 0=禁用）
-	NotifyLogRetentionDays  int  `yaml:"notify_log_retention_days"` // 通知发送/防重日志保留天数（默认 0=禁用）
+	Enabled                bool `yaml:"enabled"`                   // 默认 true（零值时构造时补齐）
+	ScanMinutes            int  `yaml:"scan_minutes"`              // 扫描间隔（默认 60）
+	RenewDaysBefore        int  `yaml:"renew_days_before"`         // 到期前 N 天自动续期（默认 30）
+	TaskLogRetentionDays   int  `yaml:"task_log_retention_days"`   // 任务日志保留天数（默认 90，0 禁用清理）
+	AuditLogRetentionDays  int  `yaml:"audit_log_retention_days"`  // 审计日志保留天数（默认 0=禁用）
+	NotifyLogRetentionDays int  `yaml:"notify_log_retention_days"` // 通知发送/防重日志保留天数（默认 0=禁用）
 }
 
 type NotifyConfig struct {
@@ -72,8 +82,8 @@ type IMWebhook struct {
 }
 
 type ACMEConfig struct {
-	CAFile     string `yaml:"ca_file"`      // 自定义 CA 池（自建 ACME CA / 测试），空则系统信任
-	HTTP01Port int    `yaml:"http01_port"`  // HTTP-01 验证服务器端口（0 默认 80）
+	CAFile     string `yaml:"ca_file"`     // 自定义 CA 池（自建 ACME CA / 测试），空则系统信任
+	HTTP01Port int    `yaml:"http01_port"` // HTTP-01 验证服务器端口（0 默认 80）
 }
 
 type ServerConfig struct {
@@ -95,8 +105,8 @@ type SecurityConfig struct {
 }
 
 type AuthConfig struct {
-	AccessTokenTTL   string `yaml:"access_token_ttl"`   // e.g. 15m
-	RefreshTokenTTL  string `yaml:"refresh_token_ttl"`  // e.g. 720h
+	AccessTokenTTL   string `yaml:"access_token_ttl"`  // e.g. 15m
+	RefreshTokenTTL  string `yaml:"refresh_token_ttl"` // e.g. 720h
 	MaxLoginFailures int    `yaml:"max_login_failures"`
 	LockoutMinutes   int    `yaml:"lockout_minutes"`
 	MinPasswordLen   int    `yaml:"min_password_len"`
@@ -131,7 +141,18 @@ func Default() Config {
 			Enabled:          false,
 			AllowKeyDownload: false,
 		},
+		Deploy: DeployConfig{
+			PFXProfile: "legacy",
+		},
 	}
+}
+
+// PFXProfileOrDefault 返回合法的 pfx_profile（空/非法 → legacy）
+func (c DeployConfig) PFXProfileOrDefault() string {
+	if c.PFXProfile == "modern" {
+		return "modern"
+	}
+	return "legacy"
 }
 
 func Load(path string) (Config, error) {

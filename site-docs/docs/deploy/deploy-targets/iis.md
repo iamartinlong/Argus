@@ -42,6 +42,26 @@ Agent 目标配置应用场景「Windows IIS」：PFX 路径 + HTTPS 端口 + �
 本机目标配置应用场景「Windows IIS」：服务端本机合成 PFX 并执行导入/绑定脚本。
 需服务端为 Windows（其他系统 Test 会拒绝）。
 
+## PFX 加密算法与 Windows 版本兼容
+
+Argus 在服务端合成 PFX。合成算法由 `config.yaml` 的 `deploy.pfx_profile` 决定：
+
+| profile | 算法 | 可导入的 Windows |
+|---|---|---|
+| `legacy`（默认） | 3DES + SHA-1（等价 OpenSSL `-descert`） | **全部**：2008 R2 / 2012 / 2012 R2 / 2016 / 2019 / 2022 |
+| `modern` | AES-256-CBC + PBKDF2-HMAC-SHA256 | 仅 **Server 2019 及更高** |
+
+> **常见故障**：目标机是 Server 2016 或更早、而 `pfx_profile` 设为 `modern` 时，
+> 导入会报 **「指定的网络密码不正确」**——这不是密码错了，是旧版 CryptoAPI
+> 解不开 AES-256/PBES2，报错信息有误导性。改回 `legacy` 并重启即可。
+
+```yaml
+deploy:
+  pfx_profile: legacy   # 目标含旧版 Windows 时保持默认；全量 2019+ 可改 modern
+```
+
+> 已有 PFX 文件需重新生成才生效（算法在合成时确定）。
+
 ## 绑定语义
 
 - **HTTP.sys 层（netsh）**：`netsh http add sslcert ipport=0.0.0.0:PORT certhash=THUMB appid=...`

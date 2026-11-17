@@ -41,6 +41,14 @@ mcp:
                               # 客户机无需安装 argus 二进制即可连接；argus mcp 子命令（stdio）不受此限
   allow_key_download: false   # 注册「下载证书」工具（含私钥）；开启后每次调用均审计
 
+# 部署相关
+deploy:
+  # 合成 PKCS#12（.pfx）的加密算法：
+  #   legacy（默认）= 3DES + SHA-1，Windows Server 2016 及更早（含 2008 R2/2012/2012 R2）均可导入
+  #   modern        = AES-256 + PBKDF2-SHA256，仅 Windows Server 2019+ 可导入
+  # 目标是旧版 Windows 时保持 legacy；全量 2019+ 环境可切 modern 提升加密强度。
+  pfx_profile: legacy
+
 notification:
   # 注意：渠道参数已在界面配置（notification_channels 表），
   # 以下配置仅在首次初始化时作为种子导入，之后以界面为准。

@@ -1,14 +1,12 @@
 package deploy
 
 import (
-	"crypto/rand"
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
 	"strings"
 
 	"golang.org/x/crypto/ssh"
-	pkcs12 "software.sslmate.com/src/go-pkcs12"
 )
 
 // IIS 场景部署（SSH/本机/Agent 通道共用）：Windows Server IIS 证书部署。
@@ -210,26 +208,6 @@ func RenderIISAgentScriptV2(pfxPath, pfxPassword string, bindings []int, siteNam
 	return r.Replace(IISHookScriptAgentV2)
 }
 
-// BuildPFX 将证书链 + 私钥合成为 PKCS#12（.pfx）
-func BuildPFX(certPEM, keyPEM, password string) ([]byte, error) {
-	certs, err := parseCertChain(certPEM)
-	if err != nil {
-		return nil, err
-	}
-	if len(certs) == 0 {
-		return nil, fmt.Errorf("证书链为空")
-	}
-	key, err := parseAnyPrivateKey(keyPEM)
-	if err != nil {
-		return nil, err
-	}
-	caCerts := certs[1:]
-	pfx, err := pkcs12.Modern.WithRand(rand.Reader).Encode(key, certs[0], caCerts, password)
-	if err != nil {
-		return nil, fmt.Errorf("合成 PFX: %w", err)
-	}
-	return pfx, nil
-}
 
 func parseCertChain(certPEM string) ([]*x509.Certificate, error) {
 	var certs []*x509.Certificate

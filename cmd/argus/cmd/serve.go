@@ -22,43 +22,43 @@ import (
 	"github.com/iamartinlong/Argus/internal/application"
 	"github.com/iamartinlong/Argus/internal/config"
 	"github.com/iamartinlong/Argus/internal/delivery/httpapi"
+	"github.com/iamartinlong/Argus/internal/domain"
 	appcrypto "github.com/iamartinlong/Argus/internal/infrastructure/crypto"
 	deployreg "github.com/iamartinlong/Argus/internal/infrastructure/deploy"
 	"github.com/iamartinlong/Argus/internal/infrastructure/notify"
+	"github.com/iamartinlong/Argus/internal/infrastructure/providers"
 	acmeprovider "github.com/iamartinlong/Argus/internal/infrastructure/providers/acme"
 	aliyunprovider "github.com/iamartinlong/Argus/internal/infrastructure/providers/aliyun"
 	tencentprovider "github.com/iamartinlong/Argus/internal/infrastructure/providers/tencent"
-	"github.com/iamartinlong/Argus/internal/infrastructure/providers"
 	"github.com/iamartinlong/Argus/internal/infrastructure/scheduler"
 	"github.com/iamartinlong/Argus/internal/infrastructure/storage"
 	"github.com/iamartinlong/Argus/internal/infrastructure/storage/dbexec"
 	"github.com/iamartinlong/Argus/internal/infrastructure/storage/sqlite"
-	"github.com/iamartinlong/Argus/internal/domain"
 )
 
 // bootstrap 本地模式依赖装配（serve 与本地 CLI 共用）
 type bootstrap struct {
-	db         dbexec.SQLDB
-	cfg        config.Config
-	certSvc    *application.CertificateService
-	accountSvc *application.ProviderAccountService
+	db            dbexec.SQLDB
+	cfg           config.Config
+	certSvc       *application.CertificateService
+	accountSvc    *application.ProviderAccountService
 	dnsAccountSvc *application.DnsProviderAccountService
-	domainSvc    *application.DomainService
-	deploySvc  *application.DeployService
-	notifySvc  *application.NotificationService
-	channelSvc *application.ChannelService
-	tokenSvc   *application.ApiTokenService
-	agentSvc   *application.AgentService
-	contactSvc *application.ContactService
-	runner     *scheduler.Runner
-	schedSvc   *application.SchedulerService
-	registry   *providers.Registry
-	deployRecs *sqlite.DeployRecordStore
-	sendLogs   *sqlite.NotificationSendLogStore
-	agents     *sqlite.AgentStore
-	taskLogs   *sqlite.TaskLogStore
-	cryptor    application.Cryptor
-	stop       chan struct{} // close() 时关闭，通知后台 goroutine 退出
+	domainSvc     *application.DomainService
+	deploySvc     *application.DeployService
+	notifySvc     *application.NotificationService
+	channelSvc    *application.ChannelService
+	tokenSvc      *application.ApiTokenService
+	agentSvc      *application.AgentService
+	contactSvc    *application.ContactService
+	runner        *scheduler.Runner
+	schedSvc      *application.SchedulerService
+	registry      *providers.Registry
+	deployRecs    *sqlite.DeployRecordStore
+	sendLogs      *sqlite.NotificationSendLogStore
+	agents        *sqlite.AgentStore
+	taskLogs      *sqlite.TaskLogStore
+	cryptor       application.Cryptor
+	stop          chan struct{} // close() 时关闭，通知后台 goroutine 退出
 }
 
 func newBootstrap(configPath string, requireJWT bool) (*bootstrap, error) {
@@ -66,6 +66,8 @@ func newBootstrap(configPath string, requireJWT bool) (*bootstrap, error) {
 	if err != nil {
 		return nil, err
 	}
+	// PFX 加密策略：部署目标是全局配置（legacy 兼容 2016 及更早的 Windows）
+	deployreg.SetPFXProfile(deployreg.PFXProfile(cfg.Deploy.PFXProfileOrDefault()))
 	if err := cfg.Validate(); err != nil {
 		if requireJWT || !strings.Contains(err.Error(), "jwt secret") {
 			return nil, err
@@ -676,7 +678,7 @@ func (c *remoteClient) do(method, path string, body any) ([]byte, error) {
 	}
 	// 成功信封：解包 data 层
 	var env struct {
-		Code any            `json:"code"`
+		Code any             `json:"code"`
 		Data json.RawMessage `json:"data"`
 	}
 	if err := json.Unmarshal(data, &env); err == nil && env.Data != nil && len(env.Data) > 0 && env.Data[0] != 'n' {
